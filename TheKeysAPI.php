@@ -377,6 +377,11 @@ public function getAllCodes($lockId, $debug = false) {
                     $startDate = $shareDate; // Show whatever is in the share date column
                 }
                 
+                // Skip permanent codes - only show time-limited codes
+                if ($shareDate === 'permanent') {
+                    continue;
+                }
+                
                 // Only add if we got a valid name (not just numbers)
                 if (!empty($name) && !is_numeric($name)) {
                     $codes[] = [
