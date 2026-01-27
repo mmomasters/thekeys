@@ -337,20 +337,19 @@ public function getAllCodes($lockId, $debug = false) {
                 continue;
             }
             
-            // Look for the accessoire ID in delete/edit links
-            if (preg_match('/\/partage\/accessoire\/(\d+)\/(delete|edit|get)/', $rowHtml, $idMatch)) {
+            // Look for the accessoire ID in delete/edit/get links (updated pattern to match full path)
+            if (preg_match('/\/en\/compte\/partage\/accessoire\/(\d+)\/(delete|edit|get|update|desactiver)/', $rowHtml, $idMatch)) {
                 $codeId = $idMatch[1];
                 
-                // Extract guest name - try multiple patterns
-                $name = 'Unknown';
+                // Extract all td cells
+                preg_match_all('/<td[^>]*>(.*?)<\/td>/is', $rowHtml, $cells);
                 
-                // Pattern 1: Link text (most common)
-                if (preg_match('/<a[^>]*href=["\'][^"\']*\/partage\/accessoire\/\d+\/[^"\']*["\'][^>]*>([^<]+)<\/a>/i', $rowHtml, $nameMatch)) {
-                    $name = trim(strip_tags($nameMatch[1]));
-                }
-                // Pattern 2: First td cell content
-                elseif (preg_match('/<td[^>]*>([^<]+)<\/td>/i', $rowHtml, $tdMatch)) {
-                    $name = trim(strip_tags($tdMatch[1]));
+                // Extract guest name - usually in the 6th column (index 5) based on the table structure
+                $name = 'Unknown';
+                if (isset($cells[1][5])) {
+                    $name = trim(strip_tags($cells[1][5]));
+                } elseif (isset($cells[1][4])) {
+                    $name = trim(strip_tags($cells[1][4]));
                 }
                 
                 // Extract dates if available
