@@ -303,11 +303,8 @@ class TheKeysAPI {
 public function getAllCodes($lockId, $debug = false) {
     $this->ensureLoggedIn();
     
-    // Get the accessoire ID for this lock
-    $accessoireId = $this->getAccessoireId($lockId);
-    
-    // Try to list all shared accesses (codes)
-    $url = $this->baseUrl . "/en/compte/partage/accessoire";
+    // Use the lock ID to view shared codes for that specific lock
+    $url = $this->baseUrl . "/en/compte/serrure/$lockId/view_partage";
     $result = $this->request($url);
     
     // Debug mode: return raw HTML even if error
@@ -315,7 +312,6 @@ public function getAllCodes($lockId, $debug = false) {
         return [
             'debug' => true,
             'lock_id' => $lockId,
-            'accessoire_id' => $accessoireId,
             'url' => $url,
             'http_code' => $result['code'],
             'effective_url' => $result['url'],
