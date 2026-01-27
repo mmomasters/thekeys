@@ -306,8 +306,8 @@ public function getAllCodes($lockId, $debug = false) {
     // Get the accessoire ID for this lock
     $accessoireId = $this->getAccessoireId($lockId);
     
-    // Use accessoire ID to get codes (the actual keypad device)
-    $url = $this->baseUrl . "/en/compte/partage/accessoire?accessoire=$accessoireId";
+    // Try to list all shared accesses (codes)
+    $url = $this->baseUrl . "/en/compte/partage/accessoire";
     $result = $this->request($url);
     
     // Debug mode: return raw HTML even if error
