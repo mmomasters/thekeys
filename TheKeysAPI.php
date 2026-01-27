@@ -306,11 +306,7 @@ public function getAllCodes($lockId, $debug = false) {
     $url = $this->baseUrl . "/en/compte/serrure/$lockId/view_partage";
     $result = $this->request($url);
     
-    if ($result['code'] != 200) {
-        throw new Exception("Cannot access codes page");
-    }
-    
-    // Debug mode: return raw HTML
+    // Debug mode: return raw HTML even if error
     if ($debug) {
         return [
             'debug' => true,
@@ -318,8 +314,14 @@ public function getAllCodes($lockId, $debug = false) {
             'http_code' => $result['code'],
             'effective_url' => $result['url'],
             'html_snippet' => substr($result['html'], 0, 5000),
-            'html_length' => strlen($result['html'])
+            'html_length' => strlen($result['html']),
+            'is_200' => $result['code'] == 200,
+            'redirected_to_login' => strpos($result['url'], '/login') !== false
         ];
+    }
+    
+    if ($result['code'] != 200) {
+        throw new Exception("Cannot access codes page (HTTP {$result['code']})");
     }
     
     $codes = [];
