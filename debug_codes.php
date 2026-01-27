@@ -36,8 +36,8 @@ try {
     $api->login();
     echo "✓ Logged in successfully\n\n";
     
-    // Pick one of your locks to test (e.g., 3718 for Studio 1A)
-    $lockId = 3718;
+    // Pick one of your locks to test (use 3723 as confirmed by user)
+    $lockId = 3723;
     
     echo "Step 5: Getting codes for Lock $lockId (DEBUG MODE)...\n\n";
     echo "=== DEBUG MODE ===\n";
