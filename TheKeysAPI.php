@@ -297,9 +297,10 @@ class TheKeysAPI {
  * Get all codes for a lock with details
  * 
  * @param int $lockId Lock ID
+ * @param bool $debug If true, returns debug information
  * @return array List of codes with IDs, names, and dates
  */
-public function getAllCodes($lockId) {
+public function getAllCodes($lockId, $debug = false) {
     $this->ensureLoggedIn();
     
     $url = $this->baseUrl . "/en/compte/serrure/$lockId/view_partage";
@@ -307,6 +308,18 @@ public function getAllCodes($lockId) {
     
     if ($result['code'] != 200) {
         throw new Exception("Cannot access codes page");
+    }
+    
+    // Debug mode: return raw HTML
+    if ($debug) {
+        return [
+            'debug' => true,
+            'url' => $url,
+            'http_code' => $result['code'],
+            'effective_url' => $result['url'],
+            'html_snippet' => substr($result['html'], 0, 5000),
+            'html_length' => strlen($result['html'])
+        ];
     }
     
     $codes = [];
