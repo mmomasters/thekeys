@@ -344,8 +344,7 @@ public function getAllCodes($lockId, $debug = false) {
                 // Extract all td cells
                 preg_match_all('/<td[^>]*>(.*?)<\/td>/is', $rowHtml, $cells);
                 
-                // Extract guest name - Table columns: 0=buttons, 1=ID, 2=Enable, 3=Date, 4=Days, 5=Hours, 6=Name, 7=Accessory
-                // So guest name is in column 6 (index 6)
+                // Extract guest name - Table columns: 0=buttons, 1=ID, 2=Enable, 3=Share Date, 4=Days, 5=Hours, 6=Name, 7=Accessory
                 $name = 'Unknown';
                 if (isset($cells[1][6])) {
                     $name = trim(strip_tags($cells[1][6]));
@@ -353,18 +352,29 @@ public function getAllCodes($lockId, $debug = false) {
                     $name = trim(strip_tags($cells[1][5]));
                 }
                 
-                // Extract dates if available
+                // Extract share date/range from column 3
+                $shareDate = null;
+                if (isset($cells[1][3])) {
+                    $shareDate = trim(strip_tags($cells[1][3]));
+                }
+                
+                // Extract dates if available from the share date column or anywhere in row
                 $startDate = null;
                 $endDate = null;
                 
-                // Look for date patterns (YYYY-MM-DD or DD/MM/YYYY)
-                if (preg_match_all('/(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})/', $rowHtml, $dateMatches)) {
+                // Look for date patterns (YYYY-MM-DD or DD/MM/YYYY) in the share date column first
+                if ($shareDate && preg_match_all('/(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})/', $shareDate, $dateMatches)) {
                     if (isset($dateMatches[1][0])) {
                         $startDate = $dateMatches[1][0];
                     }
                     if (isset($dateMatches[1][1])) {
                         $endDate = $dateMatches[1][1];
                     }
+                }
+                
+                // If no dates found, add share date info for display
+                if (!$startDate && $shareDate && $shareDate !== 'permanent') {
+                    $startDate = $shareDate; // Show whatever is in the share date column
                 }
                 
                 // Only add if we got a valid name (not just numbers)
