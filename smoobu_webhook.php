@@ -63,11 +63,65 @@ class SmoobuWebhook {
     }
     
     /**
+     * Validate and sanitize input data
+     */
+    private function validateBookingData($data) {
+        $errors = [];
+        
+        // Validate apartment ID
+        if (!isset($data['apartment']['id']) || !is_numeric($data['apartment']['id'])) {
+            $errors[] = 'Invalid or missing apartment ID';
+        }
+        
+        // Validate dates format
+        if (isset($data['arrival']) && !$this->isValidDate($data['arrival'])) {
+            $errors[] = 'Invalid arrival date format (expected YYYY-MM-DD)';
+        }
+        
+        if (isset($data['departure']) && !$this->isValidDate($data['departure'])) {
+            $errors[] = 'Invalid departure date format (expected YYYY-MM-DD)';
+        }
+        
+        // Validate date logic
+        if (isset($data['arrival']) && isset($data['departure'])) {
+            if (strtotime($data['departure']) <= strtotime($data['arrival'])) {
+                $errors[] = 'Departure date must be after arrival date';
+            }
+        }
+        
+        if (!empty($errors)) {
+            throw new Exception('Validation failed: ' . implode(', ', $errors));
+        }
+    }
+    
+    /**
+     * Validate date format
+     */
+    private function isValidDate($date) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return false;
+        }
+        
+        $parts = explode('-', $date);
+        return checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0]);
+    }
+    
+    /**
+     * Sanitize guest name
+     */
+    private function sanitizeGuestName($name) {
+        // Remove any potentially harmful characters
+        $name = preg_replace('/[^\p{L}\p{N}\s\-\'\.]/u', '', $name);
+        // Limit length
+        return mb_substr(trim($name), 0, 100);
+    }
+    
+    /**
      * Extract guest name from booking data
      */
     private function getGuestName($data) {
-        $firstName = $data['firstName'] ?? '';
-        $lastName = $data['lastName'] ?? '';
+        $firstName = $this->sanitizeGuestName($data['firstName'] ?? '');
+        $lastName = $this->sanitizeGuestName($data['lastName'] ?? '');
         $guestName = trim("$firstName $lastName");
         
         return empty($guestName) || $guestName === ' ' ? 'Guest' : $guestName;
@@ -79,19 +133,14 @@ class SmoobuWebhook {
     public function createCode($data) {
         $this->log("=== CREATE CODE ===");
         
+        // Validate input data
+        $this->validateBookingData($data);
+        
         // Extract data
         $apartmentId = $data['apartment']['id'] ?? null;
         $guestName = $this->getGuestName($data);
         $checkIn = $data['arrival'] ?? null;
         $checkOut = $data['departure'] ?? null;
-        
-        // Validate
-        if (!$apartmentId) {
-            throw new Exception("Missing apartment ID");
-        }
-        if (!$checkIn || !$checkOut) {
-            throw new Exception("Missing check-in/out dates");
-        }
         
         // Get lock ID
         $lockId = $this->getLockId($apartmentId);

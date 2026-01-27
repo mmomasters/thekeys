@@ -1,0 +1,29 @@
+# Configuration files with sensitive data
+config.php
+
+# Logs directory
+logs/
+*.log
+
+# Session/temp files
+*.txt
+
+# PHP
+vendor/
+composer.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment files
+.env
+.env.local
