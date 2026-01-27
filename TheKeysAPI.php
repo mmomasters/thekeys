@@ -344,12 +344,13 @@ public function getAllCodes($lockId, $debug = false) {
                 // Extract all td cells
                 preg_match_all('/<td[^>]*>(.*?)<\/td>/is', $rowHtml, $cells);
                 
-                // Extract guest name - usually in the 6th column (index 5) based on the table structure
+                // Extract guest name - Table columns: 0=buttons, 1=ID, 2=Enable, 3=Date, 4=Days, 5=Hours, 6=Name, 7=Accessory
+                // So guest name is in column 6 (index 6)
                 $name = 'Unknown';
-                if (isset($cells[1][5])) {
+                if (isset($cells[1][6])) {
+                    $name = trim(strip_tags($cells[1][6]));
+                } elseif (isset($cells[1][5])) {
                     $name = trim(strip_tags($cells[1][5]));
-                } elseif (isset($cells[1][4])) {
-                    $name = trim(strip_tags($cells[1][4]));
                 }
                 
                 // Extract dates if available
