@@ -358,12 +358,17 @@ public function getAllCodes($lockId, $debug = false) {
                     $shareDate = trim(strip_tags($cells[1][3]));
                 }
                 
-                // Extract dates if available from the share date column or anywhere in row
+                // Extract dates if available from the share date column
                 $startDate = null;
                 $endDate = null;
                 
-                // Look for date patterns (YYYY-MM-DD or DD/MM/YYYY) in the share date column first
-                if ($shareDate && preg_match_all('/(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})/', $shareDate, $dateMatches)) {
+                // Parse French date format: "du MMM DD, YYYY au MMM DD, YYYY"
+                if ($shareDate && preg_match('/du\s+(\w+\s+\d+,\s+\d{4}).*?au\s+(\w+\s+\d+,\s+\d{4})/i', $shareDate, $dateMatches)) {
+                    $startDate = $dateMatches[1]; // e.g., "Jan 26, 2026"
+                    $endDate = $dateMatches[2];   // e.g., "Jan 27, 2026"
+                }
+                // Also try numeric date formats
+                elseif ($shareDate && preg_match_all('/(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})/', $shareDate, $dateMatches)) {
                     if (isset($dateMatches[1][0])) {
                         $startDate = $dateMatches[1][0];
                     }
@@ -371,10 +376,9 @@ public function getAllCodes($lockId, $debug = false) {
                         $endDate = $dateMatches[1][1];
                     }
                 }
-                
-                // If no dates found, add share date info for display
-                if (!$startDate && $shareDate && $shareDate !== 'permanent') {
-                    $startDate = $shareDate; // Show whatever is in the share date column
+                // If no specific dates found, use share date text for display
+                elseif (!$startDate && $shareDate && $shareDate !== 'permanent') {
+                    $startDate = $shareDate;
                 }
                 
                 // Skip permanent codes - only show time-limited codes
