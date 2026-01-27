@@ -1,0 +1,63 @@
+# Smoobu to The Keys Integration Configuration
+#
+# SETUP INSTRUCTIONS:
+# 1. Copy this file to config.yaml
+# 2. Fill in your actual credentials and IDs
+# 3. Never commit config.yaml to version control (it's in .gitignore)
+
+# The Keys credentials
+thekeys:
+  username: ""  # Your The Keys phone number (e.g., +33650868488)
+  password: ""  # Your The Keys password
+
+# Smoobu API configuration
+smoobu:
+  api_key: ""  # Your Smoobu API key (get from Smoobu Settings > API)
+
+# Apartment to Lock mapping
+# Map your Smoobu Apartment IDs to The Keys Lock IDs
+apartment_locks:
+  # "505200": 3723   # Studio 1A (example)
+  # "505203": 3728   # Studio 1B (example)
+  # "505206": 3735   # Studio 1C (example)
+
+# Lock to Digicode (Keypad/Accessoire) mapping
+# Each lock needs to be mapped to its keypad accessoire ID
+lock_accessoires:
+  # 3723: 4413    # Digicode 1A (example)
+  # 3728: 4383    # Digicode 1B (example)
+  # 3735: 4375    # Digicode 1C (example)
+
+# Check-in/out times
+default_times:
+  check_in: "15:00"   # Default check-in time
+  check_out: "12:00"  # Default check-out time
+
+# Logging
+log_file: "logs/sync.log"
+
+# FINDING YOUR IDs:
+#
+# The Keys Lock ID:
+# - Login to https://app.the-keys.fr
+# - Go to your locks list
+# - Click on a lock
+# - Check the URL: /compte/serrure/{LOCK_ID}/view_partage
+#
+# The Keys Accessoire (Keypad) ID:
+# - Open a lock's page
+# - Go to "Partage" or access codes section
+# - Create a temporary code
+# - Check the form or URL for accessoire ID
+# - Or inspect network tab when creating a code
+#
+# Smoobu Apartment ID:
+# - Login to Smoobu
+# - Go to your apartments
+# - Click on an apartment
+# - Check the URL or apartment details
+#
+# Smoobu API Key:
+# - Login to Smoobu
+# - Go to Settings > API
+# - Generate or copy your API key

@@ -1,0 +1,10 @@
+# Python dependencies for Smoobu to The Keys integration
+
+# HTTP client library
+requests>=2.31.0
+
+# YAML configuration parser
+PyYAML>=6.0.1
+
+# For disabling SSL warnings (development only)
+urllib3>=2.1.0
