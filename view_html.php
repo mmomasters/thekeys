@@ -24,14 +24,32 @@ $debug = $api->getAllCodes($lockId, true);
 
 header('Content-Type: text/plain; charset=utf-8');
 
-echo "=== RAW HTML (first 10000 chars) ===\n\n";
-echo substr($debug['html_snippet'], 0, 10000);
+// Get the full HTML
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $debug['url']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_COOKIEJAR, sys_get_temp_dir() . '/thekeys_session_' . md5($config['thekeys']['username']) . '.txt');
+curl_setopt($ch, CURLOPT_COOKIEFILE, sys_get_temp_dir() . '/thekeys_session_' . md5($config['thekeys']['username']) . '.txt');
+$fullHtml = curl_exec($ch);
+curl_close($ch);
 
-echo "\n\n=== FULL HTML LENGTH: " . $debug['html_length'] . " ===\n";
-echo "\n\nLook for table rows with code information...\n";
+echo "=== FULL HTML LENGTH: " . strlen($fullHtml) . " ===\n\n";
 
 // Try to find table content
-if (preg_match('/<table[^>]*>(.*?)<\/table>/is', $debug['html_snippet'], $table)) {
-    echo "\n=== FOUND TABLE ===\n";
-    echo substr($table[0], 0, 3000);
+if (preg_match_all('/<table[^>]*>(.*?)<\/table>/is', $fullHtml, $tables)) {
+    echo "=== FOUND " . count($tables[0]) . " TABLE(S) ===\n\n";
+    foreach ($tables[0] as $i => $table) {
+        echo "--- TABLE " . ($i+1) . " ---\n";
+        echo substr($table, 0, 5000) . "\n\n";
+    }
+} else {
+    echo "No tables found. Looking for 'partage' or 'code' keywords...\n\n";
+    
+    // Search for relevant sections
+    if (preg_match('/partage.*?<\/div>/is', $fullHtml, $m)) {
+        echo "Found 'partage' section:\n";
+        echo substr($m[0], 0, 2000) . "\n\n";
+    }
 }
