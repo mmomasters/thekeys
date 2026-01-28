@@ -48,9 +48,23 @@ if (!$payload) {
 }
 
 // Extract event type and data
-// Smoobu sends different structures, handle both
-$eventType = $payload['event'] ?? $payload['type'] ?? 'reservation.updated';
-$bookingData = $payload['booking'] ?? $payload['data'] ?? $payload;
+// Smoobu sends action field (newReservation, cancelReservation, updateReservation)
+$action = $payload['action'] ?? '';
+$bookingData = $payload['data'] ?? $payload['booking'] ?? $payload;
+
+// Map Smoobu actions to our event types
+$eventTypeMap = [
+    'newReservation' => 'reservation.new',
+    'cancelReservation' => 'reservation.cancelled',
+    'updateReservation' => 'reservation.updated',
+];
+
+$eventType = $eventTypeMap[$action] ?? 'reservation.updated';
+
+// For cancelled bookings, check the type field too
+if (isset($bookingData['type']) && $bookingData['type'] === 'cancellation') {
+    $eventType = 'reservation.cancelled';
+}
 
 // Security checks (optional but recommended)
 if (!empty($config['webhook']['ip_whitelist'])) {
