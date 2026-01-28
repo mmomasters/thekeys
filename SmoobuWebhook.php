@@ -380,7 +380,11 @@ class SmoobuWebhook {
                 
                 'de' => "Lieber, Herr {$guestName},\n\n- Hauptgebäude \"Jana z Kolna 19\" Code ist 1 + SCHLÜSSEL + 5687\n- Lobby-Türcode ist 3256 + ENTER\n- Der Türcode für das Apartment {$apartmentName} lautet {$fullPin} + BLAUE TASTE\n\nIhr Apartmentcode funktioniert NUR zwischen Check-in- und Check-out-Datum und -Uhrzeit.\nIhr Check-in: {$arrival} ab 15.00 Uhr.\nIhr Check-out: {$departure} bis 12.00 Uhr.\n\nPARKING : Das Parken ist von 17:00 bis 08:00 Uhr sowie an Wochenenden und Feiertagen kostenlos.\n\nBei Problemen rufen Sie uns unter +48 91 819 99 65 an.\n\nKolna Apartments",
                 
-                'pl' => "Pan, Pani {$guestName},\n\n- Kod budynku głównego \"Jana z Kolna 19\" to 1 + KLUCZ + 5687\n- Kod do recepcji to 3256 + ENTER\n- Kod apartamentu {$apartmentName} to {$fullPin} + NIEBIESKI PRZYCISK\n\nTwój kod apartamentu będzie działał TYLKO pomiędzy datą i godziną zameldowania i wymeldowania.\nTwoje zameldowanie: {$arrival} od 15.00\nTwoje wymeldowanie: {$departure} do 12.00\n\nPARKING : Parking jest bezpłatny od 17:00 do 8:00 oraz w weekendy i święta.\n\nW przypadku problemów prosimy o kontakt +48 91 819 99 65\n\nŻyczymy miłego pobytu,\nKolna Apartments"
+                'pl' => "Pan, Pani {$guestName},\n\n- Kod budynku głównego \"Jana z Kolna 19\" to 1 + KLUCZ + 5687\n- Kod do recepcji to 3256 + ENTER\n- Kod apartamentu {$apartmentName} to {$fullPin} + NIEBIESKI PRZYCISK\n\nTwój kod apartamentu będzie działał TYLKO pomiędzy datą i godziną zameldowania i wymeldowania.\nTwoje zameldowanie: {$arrival} od 15.00\nTwoje wymeldowanie: {$departure} do 12.00\n\nPARKING : Parking jest bezpłatny od 17:00 do 8:00 oraz w weekendy i święta.\n\nW przypadku problemów prosimy o kontakt +48 91 819 99 65\n\nŻyczymy miłego pobytu,\nKolna Apartments",
+                
+                'ru' => "Уважаемый {$guestName},\n\n- Код главного здания \"Jana z Kolna 19\" - 1 + КЛЮЧ + 5687\n- Код двери в холл - 3256 + ENTER\n- Код двери апартаментов {$apartmentName} - {$fullPin} + СИНЯЯ КНОПКА\n\nВаш код апартаментов будет работать ТОЛЬКО между датой и временем заезда и выезда.\nВаш заезд: {$arrival} с 15.00\nВаш выезд: {$departure} до 12.00\n\nПАРКОВКА: Парковка бесплатна с 17:00 до 08:00, а также в выходные и праздничные дни.\n\nВ случае возникновения проблем звоните нам +48 91 819 99 65\n\nKolna Apartments",
+                
+                'uk' => "Шановний {$guestName},\n\n- Код головної будівлі \"Jana z Kolna 19\" - 1 + КЛЮЧ + 5687\n- Код дверей у холл - 3256 + ENTER\n- Код дверей апартаментів {$apartmentName} - {$fullPin} + СИНЯ КНОПКА\n\nВаш код апартаментів буде працювати ЛИШЕ між датою та часом заїзду та від'їзду.\nВаш заїзд: {$arrival} з 15.00\nВаш від'їзд: {$departure} до 12.00\n\nПАРКУВАННЯ: Парковка безкоштовна з 17:00 до 08:00, а також у вихідні та святкові дні.\n\nУ разі виникнення проблем телефонуйте нам +48 91 819 99 65\n\nKolna Apartments"
             ];
             
             $message = $messages[$language] ?? $messages['en'];
@@ -438,10 +442,16 @@ class SmoobuWebhook {
             'pl' => "Pan, Pani {$guestName},\n\n- Kod budynku głównego \"Jana z Kolna 19\" to 1 + KLUCZ + 5687\n- Kod do recepcji to 3256 + ENTER\n- Kod apartamentu {$apartmentName} to {$fullPin} + NIEBIESKI PRZYCISK\n\nTwój kod apartamentu będzie działał TYLKO pomiędzy datą i godziną zameldowania i wymeldowania.\nTwoje zameldowanie: {$arrival} od 15.00\nTwoje wymeldowanie: {$departure} do 12.00\n\nPARKING : Dużo miejsc parkingowych znajduje się przy ulicy pod Kolna Apartments. Parking jest bezpłatny od 17:00 do 8:00 oraz w weekendy i święta, cennik: https://spp.szczecin.pl/informacja/cennik-strefy-platnego-parkowania\n\nW przypadku jakichkolwiek problemów prosimy o kontakt telefoniczny +48 91 819 99 65\n\nŻyczymy miłego pobytu,\nKolna Apartments"
         ];
         
+        $messages['ru'] = "Уважаемый {$guestName},\n\n- Код главного здания \"Jana z Kolna 19\" - 1 + КЛЮЧ + 5687\n- Код двери в холл - 3256 + ENTER\n- Код двери апартаментов {$apartmentName} - {$fullPin} + СИНЯЯ КНОПКА\n\nВаш код апартаментов будет работать ТОЛЬКО между датой и временем заезда и выезда.\nВаш заезд: {$arrival} с 15.00\nВаш выезд: {$departure} до 12.00\n\nПАРКОВКА: Много парковочных мест расположено на улице возле Kolna Apartments. Парковка бесплатна с 17:00 до 08:00, а также в выходные и праздничные дни, цены: https://spp.szczecin.pl/informacja/paid-parking-zone-pricing\n\nВ случае возникновения проблем звоните нам +48 91 819 99 65\n\nЖелаем вам приятного отдыха,\nKolna Apartments";
+        
+        $messages['uk'] = "Шановний {$guestName},\n\n- Код головної будівлі \"Jana z Kolna 19\" - 1 + КЛЮЧ + 5687\n- Код дверей у холл - 3256 + ENTER\n- Код дверей апартаментів {$apartmentName} - {$fullPin} + СИНЯ КНОПКА\n\nВаш код апартаментів буде працювати ЛИШЕ між датою та часом заїзду та від'їзду.\nВаш заїзд: {$arrival} з 15.00\nВаш від'їзд: {$departure} до 12.00\n\nПАРКУВАННЯ: Багато паркувальних місць розташовано на вулиці біля Kolna Apartments. Парковка безкоштовна з 17:00 до 08:00, а також у вихідні та святкові дні, ціни: https://spp.szczecin.pl/informacja/paid-parking-zone-pricing\n\nУ разі виникнення проблем телефонуйте нам +48 91 819 99 65\n\nБажаємо вам приємного відпочинку,\nKolna Apartments";
+        
         $subjects = [
             'en' => "Kolna Apartments access codes and information",
             'de' => "Zugangscodes für die Kolna Apartments",
-            'pl' => "Kody dostępu do Kolna Apartments"
+            'pl' => "Kody dostępu do Kolna Apartments",
+            'ru' => "Коды доступа Kolna Apartments",
+            'uk' => "Коди доступу Kolna Apartments"
         ];
         
         $message = $messages[$language] ?? $messages['en'];
