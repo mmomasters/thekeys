@@ -1,5 +1,6 @@
 # Sensitive configuration
 config.yaml
+config.php
 
 # Python
 __pycache__/
