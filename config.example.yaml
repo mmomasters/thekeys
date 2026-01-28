@@ -1,0 +1,41 @@
+# Configuration for Smoobu to The Keys Sync
+# Copy this file to config.yaml and fill in your credentials
+
+# The Keys API credentials
+thekeys:
+  username: "your_thekeys_username"
+  password: "your_thekeys_password"
+
+# Smoobu API credentials
+smoobu:
+  api_key: "your_smoobu_api_key"
+
+# Mapping: Smoobu Apartment ID -> The Keys Lock ID
+apartment_locks:
+  "123456": 3733  # Apartment 1 -> Lock 1
+  "123457": 3723  # Apartment 2 -> Lock 2
+
+# Mapping: The Keys Lock ID -> Accessoire ID (STRING)
+lock_accessoires:
+  3733: "OXe37UIa"  # Lock 1 accessoire
+  3723: "SLORUV6s"  # Lock 2 accessoire
+
+# PIN code prefixes for each lock (2 digits)
+digicode_prefixes:
+  3733: "28"  # Lock 1 prefix
+  3723: "18"  # Lock 2 prefix
+
+# Default check-in/check-out times
+default_times:
+  check_in_hour: "15"
+  check_in_minute: "0"
+  check_out_hour: "12"
+  check_out_minute: "0"
+
+# PIN code settings
+code_settings:
+  length: 4  # 4-digit PIN codes
+
+# Logging configuration
+log_file: "logs/sync.log"
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
