@@ -54,6 +54,11 @@ class SmoobuSync:
         self.smoobu_api_key = self.config['smoobu']['api_key']
         self.smoobu_base_url = "https://login.smoobu.com/api"
         
+        # SMSFactor API configuration
+        self.smsfactor_token = self.config.get('smsfactor', {}).get('api_token', '')
+        self.smsfactor_base_url = "https://api.smsfactor.com"
+        self.sms_recipients = self.config.get('smsfactor', {}).get('recipients', [])
+        
     def get_smoobu_bookings(self, start_date: str = None, end_date: str = None) -> List[Dict]:
         """Get bookings from Smoobu API with pagination"""
         if not start_date:
@@ -223,6 +228,53 @@ Kolna Apartments"""
             self.logger.error(f"Failed to send PIN: {e}")
             return False
     
+    def send_sms_notification(self, booking: Dict, full_pin: str, apartment_name: str, action: str = "new") -> bool:
+        """Send SMS notification via SMSFactor API"""
+        if not self.smsfactor_token or not self.sms_recipients:
+            self.logger.debug("SMS notifications disabled (no token or recipients)")
+            return False
+        
+        guest_name = booking.get('guest-name', 'Guest')
+        arrival = booking.get('arrival', '')
+        departure = booking.get('departure', '')
+        booking_id = booking.get('id', '')
+        
+        # Create SMS message based on action
+        if action == "new":
+            message = f"🔑 NEW BOOKING #{booking_id}\n{guest_name}\n{apartment_name}\n{arrival} → {departure}\nPIN: {full_pin}"
+        elif action == "update":
+            message = f"📝 UPDATED BOOKING #{booking_id}\n{guest_name}\n{apartment_name}\n{arrival} → {departure}\nPIN: {full_pin}"
+        elif action == "cancel":
+            message = f"❌ CANCELLED BOOKING #{booking_id}\n{guest_name}\n{apartment_name}\n{arrival} → {departure}"
+        else:
+            message = f"🔔 BOOKING #{booking_id}\n{guest_name}\n{apartment_name}\n{arrival} → {departure}\nPIN: {full_pin}"
+        
+        url = f"{self.smsfactor_base_url}/send"
+        headers = {
+            "Authorization": f"Bearer {self.smsfactor_token}",
+            "Content-Type": "application/json"
+        }
+        
+        success_count = 0
+        for recipient in self.sms_recipients:
+            data = {
+                "to": recipient,
+                "text": message,
+                "sender": "KolnaApts"
+            }
+            
+            try:
+                r = requests.post(url, headers=headers, json=data)
+                if r.status_code in [200, 201]:
+                    self.logger.info(f"Sent SMS to {recipient} for booking {booking_id}")
+                    success_count += 1
+                else:
+                    self.logger.warning(f"Failed to send SMS to {recipient}: {r.status_code} - {r.text}")
+            except Exception as e:
+                self.logger.error(f"Failed to send SMS to {recipient}: {e}")
+        
+        return success_count > 0
+    
     def extract_pin_from_message(self, booking: Dict, lock_id: int) -> Optional[str]:
         """
         Extract PIN code from Smoobu welcome message
@@ -354,6 +406,13 @@ Kolna Apartments"""
                     )
                     if success:
                         self.logger.info(f"[OK] Updated code for {guest_name} - added Smoobu#{booking_id}")
+                        
+                        # Send SMS notification for updated booking
+                        apartment_name = booking.get('apartment', {}).get('name', 'your apartment')
+                        prefix = self.config.get('digicode_prefixes', {}).get(lock_id, '')
+                        full_pin = f"{prefix}{existing_pin}" if prefix else existing_pin
+                        self.send_sms_notification(booking, full_pin, apartment_name, action="update")
+                        
                         return True
                     else:
                         self.logger.error(f"[FAILED] Could not update code {match_code['id']}")
@@ -388,9 +447,13 @@ Kolna Apartments"""
                 )
                 if result:
                     self.logger.info(f"[OK] Created code {result['code']} for {guest_name}")
+                    apartment_name = booking.get('apartment', {}).get('name', 'your apartment')
+                    
+                    # Send SMS notification for new booking
+                    self.send_sms_notification(booking, full_pin, apartment_name, action="new")
+                    
                     # Send message to future guests (including same-day arrivals)
                     if datetime.now().strftime('%Y-%m-%d') <= arrival:
-                        apartment_name = booking.get('apartment', {}).get('name', 'your apartment')
                         self.logger.info(f"Sending PIN message to {guest_name} (arrival: {arrival})")
                         self.send_pin_to_guest(booking, full_pin, apartment_name)
                     else:

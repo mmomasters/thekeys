@@ -167,9 +167,13 @@ class SmoobuWebhook {
             // Log to database
             $this->logSyncOperation($bookingId, $codeId, 'create', true);
             
+            $apartmentName = $booking['apartment']['name'] ?? 'your apartment';
+            
+            // Send SMS notification for new booking
+            $this->sendSMSNotification($booking, $fullPin, $apartmentName, 'new');
+            
             // Send message to guest
             if (date('Y-m-d') <= $arrival) {
-                $apartmentName = $booking['apartment']['name'] ?? 'your apartment';
                 $this->sendPINToGuest($booking, $fullPin, $apartmentName);
             }
             
@@ -249,6 +253,13 @@ class SmoobuWebhook {
         if ($success) {
             $this->log("Updated code for {$guestName} (Code ID: {$existingCode['id']})");
             $this->logSyncOperation($bookingId, $existingCode['id'], 'update', true);
+            
+            // Send SMS notification for updated booking
+            $apartmentName = $booking['apartment']['name'] ?? 'your apartment';
+            $prefix = $this->config['digicode_prefixes'][$lockId] ?? '';
+            $fullPin = $prefix . $existingPin;
+            $this->sendSMSNotification($booking, $fullPin, $apartmentName, 'update');
+            
             return ['status' => 'updated', 'code_id' => $existingCode['id']];
         }
         
@@ -291,6 +302,11 @@ class SmoobuWebhook {
         if ($success) {
             $this->log("Deleted code for cancelled booking {$bookingId} (Code ID: {$existingCode['id']})");
             $this->logSyncOperation($bookingId, $existingCode['id'], 'delete', true);
+            
+            // Send SMS notification for cancellation
+            $apartmentName = $booking['apartment']['name'] ?? 'your apartment';
+            $this->sendSMSNotification($booking, '', $apartmentName, 'cancel');
+            
             return ['status' => 'deleted', 'code_id' => $existingCode['id']];
         }
         
@@ -317,6 +333,70 @@ class SmoobuWebhook {
             $pin .= rand(0, 9);
         }
         return $pin;
+    }
+    
+    private function sendSMSNotification($booking, $fullPin, $apartmentName, $action = 'new') {
+        $smsfactorConfig = $this->config['smsfactor'] ?? [];
+        $apiToken = $smsfactorConfig['api_token'] ?? '';
+        $recipients = $smsfactorConfig['recipients'] ?? [];
+        
+        if (empty($apiToken) || empty($recipients)) {
+            $this->log("SMS notifications disabled (no token or recipients)", 'DEBUG');
+            return false;
+        }
+        
+        $bookingId = $booking['id'] ?? '';
+        $guestName = $booking['guest-name'] ?? 'Guest';
+        $arrival = $booking['arrival'] ?? '';
+        $departure = $booking['departure'] ?? '';
+        
+        // Create SMS message based on action
+        switch ($action) {
+            case 'new':
+                $message = "🔑 NEW BOOKING #{$bookingId}\n{$guestName}\n{$apartmentName}\n{$arrival} → {$departure}\nPIN: {$fullPin}";
+                break;
+            case 'update':
+                $message = "📝 UPDATED BOOKING #{$bookingId}\n{$guestName}\n{$apartmentName}\n{$arrival} → {$departure}\nPIN: {$fullPin}";
+                break;
+            case 'cancel':
+                $message = "❌ CANCELLED BOOKING #{$bookingId}\n{$guestName}\n{$apartmentName}\n{$arrival} → {$departure}";
+                break;
+            default:
+                $message = "🔔 BOOKING #{$bookingId}\n{$guestName}\n{$apartmentName}\n{$arrival} → {$departure}\nPIN: {$fullPin}";
+        }
+        
+        $url = "https://api.smsfactor.com/send";
+        $successCount = 0;
+        
+        foreach ($recipients as $recipient) {
+            $data = [
+                'to' => $recipient,
+                'text' => $message,
+                'sender' => 'KolnaApts'
+            ];
+            
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $apiToken,
+                'Content-Type: application/json'
+            ]);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode === 200 || $httpCode === 201) {
+                $this->log("Sent SMS to {$recipient} for booking {$bookingId}");
+                $successCount++;
+            } else {
+                $this->log("Failed to send SMS to {$recipient}: HTTP {$httpCode} - {$response}", 'WARNING');
+            }
+        }
+        
+        return $successCount > 0;
     }
     
     private function sendPINToGuest($booking, $fullPin, $apartmentName) {

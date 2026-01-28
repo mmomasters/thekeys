@@ -25,6 +25,15 @@ return [
         'api_key' => 'your_smoobu_api_key'
     ],
     
+    // SMSFactor API configuration (optional - for SMS notifications)
+    'smsfactor' => [
+        'api_token' => 'your_smsfactor_api_token',
+        'recipients' => [
+            '+48123456789',  // Phone number(s) to receive SMS notifications
+            // '+33987654321',  // Add more recipients as needed
+        ]
+    ],
+    
     // Mapping: Smoobu Apartment ID -> The Keys Lock ID
     'apartment_locks' => [
         '123456' => 3733,  // Replace with your apartment ID -> Lock ID
