@@ -303,9 +303,7 @@ class SmoobuWebhook {
             $this->log("Deleted code for cancelled booking {$bookingId} (Code ID: {$existingCode['id']})");
             $this->logSyncOperation($bookingId, $existingCode['id'], 'delete', true);
             
-            // Send SMS notification for cancellation
-            $apartmentName = $booking['apartment']['name'] ?? 'your apartment';
-            $this->sendSMSNotification($booking, '', $apartmentName, 'cancel');
+            // No SMS for cancellations (guest already knows, save costs)
             
             return ['status' => 'deleted', 'code_id' => $existingCode['id']];
         }
