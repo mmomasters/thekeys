@@ -10,11 +10,13 @@
 // IP Protection - Only allow access from authorized IP
 $allowedDomain = 'mmo.gleeze.com';
 $allowedIPs = gethostbynamel($allowedDomain);
-$visitorIP = $_SERVER['REMOTE_ADDR'];
+
+// Get real IP (Cloudflare passes real IP in CF-Connecting-IP header)
+$visitorIP = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'];
 
 if (!$allowedIPs || !in_array($visitorIP, $allowedIPs)) {
     http_response_code(403);
-    die('<!DOCTYPE html><html><head><title>Access Denied</title><style>body{font-family:Arial;text-align:center;padding:50px;background:#f44336;color:white;}h1{font-size:48px;}</style></head><body><h1>🔒 Access Denied</h1><p>This page is restricted to authorized users only.</p><p>Your IP: ' . htmlspecialchars($visitorIP) . '</p></body></html>');
+    die('<!DOCTYPE html><html><head><title>Access Denied</title><style>body{font-family:Arial;text-align:center;padding:50px;background:#f44336;color:white;}h1{font-size:48px;}</style></head><body><h1>🔒 Access Denied</h1><p>This page is restricted to authorized users only.</p><p>Your IP: ' . htmlspecialchars($visitorIP) . '</p><p>Allowed: ' . htmlspecialchars(implode(', ', $allowedIPs ?: [])) . '</p></body></html>');
 }
 
 require_once 'config.php';
