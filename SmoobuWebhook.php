@@ -338,10 +338,10 @@ class SmoobuWebhook {
     private function sendSMSNotification($booking, $fullPin, $apartmentName, $action = 'new') {
         $smsfactorConfig = $this->config['smsfactor'] ?? [];
         $apiToken = $smsfactorConfig['api_token'] ?? '';
-        $recipients = $smsfactorConfig['recipients'] ?? [];
+        $adminRecipients = $smsfactorConfig['recipients'] ?? [];
         
-        if (empty($apiToken) || empty($recipients)) {
-            $this->log("SMS notifications disabled (no token or recipients)", 'DEBUG');
+        if (empty($apiToken)) {
+            $this->log("SMS notifications disabled (no token)", 'DEBUG');
             return false;
         }
         
@@ -349,6 +349,20 @@ class SmoobuWebhook {
         $guestName = $booking['guest-name'] ?? 'Guest';
         $arrival = $booking['arrival'] ?? '';
         $departure = $booking['departure'] ?? '';
+        
+        // Get guest phone number from booking and clean it
+        $guestPhone = $booking['phone'] ?? '';
+        if ($guestPhone) {
+            // Clean phone number: remove spaces, parentheses, dashes
+            $guestPhone = str_replace([' ', '(', ')', '-'], '', $guestPhone);
+        }
+        
+        // Build recipient list: guest phone + configured admin phones
+        $recipients = [];
+        if (!empty($guestPhone)) {
+            $recipients[] = $guestPhone;
+        }
+        $recipients = array_merge($recipients, $adminRecipients);
         
         // Create SMS message based on action
         switch ($action) {

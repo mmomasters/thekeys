@@ -230,14 +230,26 @@ Kolna Apartments"""
     
     def send_sms_notification(self, booking: Dict, full_pin: str, apartment_name: str, action: str = "new") -> bool:
         """Send SMS notification via SMSFactor API"""
-        if not self.smsfactor_token or not self.sms_recipients:
-            self.logger.debug("SMS notifications disabled (no token or recipients)")
+        if not self.smsfactor_token:
+            self.logger.debug("SMS notifications disabled (no token)")
             return False
         
         guest_name = booking.get('guest-name', 'Guest')
         arrival = booking.get('arrival', '')
         departure = booking.get('departure', '')
         booking_id = booking.get('id', '')
+        
+        # Get guest phone number from booking and clean it
+        guest_phone = booking.get('phone', '')
+        if guest_phone:
+            # Clean phone number: remove spaces, parentheses, dashes
+            guest_phone = guest_phone.replace(' ', '').replace('(', '').replace(')', '').replace('-', '')
+        
+        # Build recipient list: guest phone + configured admin phones
+        recipients = []
+        if guest_phone:
+            recipients.append(guest_phone)
+        recipients.extend(self.sms_recipients)
         
         # Create SMS message based on action
         if action == "new":
