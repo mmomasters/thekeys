@@ -209,15 +209,6 @@ Log format:
 [2026-01-28 09:30:02] [INFO] Sent PIN message to John Doe (en)
 ```
 
-## 🔄 Migration from Python
-
-If you were using the Python polling system (`smoobu_sync.py`):
-
-1. **Stop scheduled task** - No more need for Task Scheduler
-2. **Keep Python files** - Useful for manual operations
-3. **Webhook handles real-time** - Events processed instantly
-4. **Database tracks everything** - Better audit trail
-
 ## 🆘 Troubleshooting
 
 ### Webhook not receiving events
