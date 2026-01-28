@@ -263,29 +263,29 @@ class SmoobuWebhook {
             throw new Exception("Failed to login to The Keys API");
         }
         
-        $apartmentId = (string)($booking['apartment']['id'] ?? '');
-        $lockId = $this->config['apartment_locks'][$apartmentId] ?? null;
-        
-        if (!$lockId) {
-            return ['status' => 'skipped', 'message' => 'No lock mapping'];
-        }
-        
         $bookingId = $booking['id'];
-        $existingCode = $this->findExistingCode($lockId, $bookingId);
+        
+        // Search for existing code across ALL locks (might have moved apartments)
+        $existingCode = null;
+        $existingLockId = null;
+        
+        foreach ($this->config['lock_accessoires'] as $searchLockId => $accessoire) {
+            $code = $this->findExistingCode($searchLockId, $bookingId);
+            if ($code) {
+                $existingCode = $code;
+                $existingLockId = $searchLockId;
+                break;
+            }
+        }
         
         if (!$existingCode) {
             $this->log("Code not found for booking {$bookingId}, nothing to delete");
             return ['status' => 'not_found', 'message' => 'Code not found'];
         }
         
-        // Only delete if checkout has passed
-        $checkoutDate = $existingCode['date_fin'] ?? null;
-        if ($checkoutDate && $checkoutDate > date('Y-m-d')) {
-            $this->log("Checkout date {$checkoutDate} is in future, keeping code for now");
-            return ['status' => 'deferred', 'message' => 'Checkout date not passed'];
-        }
-        
-        // Delete code
+        // CANCELLED bookings: delete immediately regardless of checkout date
+        // Guest won't be coming, so code should be removed right away
+        $this->log("Deleting code for cancelled booking {$bookingId} from lock {$existingLockId} (Code ID: {$existingCode['id']})");
         $success = $this->keysApi->deleteCode($existingCode['id']);
         
         if ($success) {
