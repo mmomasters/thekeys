@@ -384,34 +384,36 @@ class SmoobuWebhook {
                 $message = "🔔 BOOKING #{$bookingId}\n{$guestName}\n{$apartmentName}\n{$arrival} → {$departure}\nPIN: {$fullPin}";
         }
         
-        $url = "https://api.smsfactor.com/send";
         $successCount = 0;
         
         foreach ($recipients as $recipient) {
-            $data = [
+            // SMSFactor uses GET with query parameters
+            $params = [
                 'to' => $recipient,
                 'text' => $message,
                 'sender' => 'KolnaApts'
             ];
             
+            $url = "https://api.smsfactor.com/send?" . http_build_query($params);
+            
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Authorization: Bearer ' . $apiToken,
-                'Content-Type: application/json'
+                'Accept: application/json'
             ]);
             
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $responseData = json_decode($response, true);
             curl_close($ch);
             
-            if ($httpCode === 200 || $httpCode === 201) {
-                $this->log("Sent SMS to {$recipient} for booking {$bookingId}");
+            if ($httpCode === 200 && isset($responseData['status']) && $responseData['status'] == 1) {
+                $this->log("Sent SMS to {$recipient} for booking {$bookingId} (ticket: {$responseData['ticket']})");
                 $successCount++;
             } else {
-                $this->log("Failed to send SMS to {$recipient}: HTTP {$httpCode} - {$response}", 'WARNING');
+                $errorMsg = $responseData['message'] ?? 'Unknown error';
+                $this->log("Failed to send SMS to {$recipient}: HTTP {$httpCode} - {$errorMsg} - {$response}", 'WARNING');
             }
         }
         
