@@ -1,4 +1,4 @@
-<?php
+an i run the file <?php
 /**
  * Manual Sync Script
  * Run this after server downtime to sync missed bookings
@@ -15,6 +15,16 @@ $config = require 'config.php';
 echo "============================================\n";
 echo "Manual Booking Sync - Recovery Tool\n";
 echo "============================================\n\n";
+
+// Check if --apply flag is provided
+$apply = in_array('--apply', $argv);
+
+if (!$apply) {
+    echo "🔍 DRY RUN MODE - No changes will be made\n";
+    echo "   Review the changes below, then run with --apply to execute\n\n";
+} else {
+    echo "✅ APPLY MODE - Changes will be applied\n\n";
+}
 
 // Initialize APIs
 $keysApi = new TheKeysAPI(
@@ -121,12 +131,80 @@ foreach ($bookings as $booking) {
         
         // Check if code is on correct lock
         if ($existing['lock_id'] != $lockId) {
-            echo "  → Booking {$bookingId} ({$guestName}): Moved locks, recreating...\n";
+            echo "  → Booking {$bookingId} ({$guestName}): Apartment moved (Lock {$existing['lock_id']} → {$lockId})\n";
             
-            // Delete old code
-            $keysApi->deleteCode($existing['code_id']);
+            if ($apply) {
+                // Delete old code
+                $keysApi->deleteCode($existing['code_id']);
+                
+                // Create new code
+                $pinCode = generatePIN($config['code_settings']['length'] ?? 4);
+                $times = $config['default_times'];
+                $result = $keysApi->createCode(
+                    $lockId,
+                    $idAccessoire,
+                    $guestName,
+                    $pinCode,
+                    $arrival,
+                    $departure,
+                    $times['check_in_hour'],
+                    $times['check_in_minute'],
+                    $times['check_out_hour'],
+                    $times['check_out_minute'],
+                    "Smoobu#{$bookingId}"
+                );
+                
+                if ($result) {
+                    echo "    ✓ Created new code on lock {$lockId}\n";
+                    $stats['created']++;
+                } else {
+                    echo "    ✗ Failed to create code\n";
+                    $stats['errors']++;
+                }
+            } else {
+                echo "    [DRY RUN] Would delete from lock {$existing['lock_id']} and create on lock {$lockId}\n";
+                $stats['created']++;
+            }
+        } elseif ($existing['start'] != $arrival || $existing['end'] != $departure) {
+            // Dates changed, update
+            echo "  → Booking {$bookingId} ({$guestName}): Dates changed ({$existing['start']}-{$existing['end']} → {$arrival}-{$departure})\n";
             
-            // Create new code
+            if ($apply) {
+                $times = $config['default_times'];
+                $success = $keysApi->updateCode(
+                    $existing['code_id'],
+                    $guestName,
+                    $existing['code'],
+                    $arrival,
+                    $departure,
+                    $times['check_in_hour'],
+                    $times['check_in_minute'],
+                    $times['check_out_hour'],
+                    $times['check_out_minute'],
+                    true,
+                    "Smoobu#{$bookingId}"
+                );
+                
+                if ($success) {
+                    echo "    ✓ Updated\n";
+                    $stats['updated']++;
+                } else {
+                    echo "    ✗ Failed to update\n";
+                    $stats['errors']++;
+                }
+            } else {
+                echo "    [DRY RUN] Would update dates\n";
+                $stats['updated']++;
+            }
+        } else {
+            // All good
+            $stats['ok']++;
+        }
+    } else {
+        // Code doesn't exist, create it
+        echo "  → Booking {$bookingId} ({$guestName}): Missing code (arrive: {$arrival})\n";
+        
+        if ($apply) {
             $pinCode = generatePIN($config['code_settings']['length'] ?? 4);
             $times = $config['default_times'];
             $result = $keysApi->createCode(
@@ -144,69 +222,16 @@ foreach ($bookings as $booking) {
             );
             
             if ($result) {
-                echo "    ✓ Created new code on lock {$lockId}\n";
+                $prefix = $config['digicode_prefixes'][$lockId] ?? '';
+                echo "    ✓ Created code {$prefix}{$pinCode}\n";
                 $stats['created']++;
             } else {
                 echo "    ✗ Failed to create code\n";
                 $stats['errors']++;
             }
-        } elseif ($existing['start'] != $arrival || $existing['end'] != $departure) {
-            // Dates changed, update
-            echo "  → Booking {$bookingId} ({$guestName}): Dates changed, updating...\n";
-            
-            $times = $config['default_times'];
-            $success = $keysApi->updateCode(
-                $existing['code_id'],
-                $guestName,
-                $existing['code'],
-                $arrival,
-                $departure,
-                $times['check_in_hour'],
-                $times['check_in_minute'],
-                $times['check_out_hour'],
-                $times['check_out_minute'],
-                true,
-                "Smoobu#{$bookingId}"
-            );
-            
-            if ($success) {
-                echo "    ✓ Updated\n";
-                $stats['updated']++;
-            } else {
-                echo "    ✗ Failed to update\n";
-                $stats['errors']++;
-            }
         } else {
-            // All good
-            $stats['ok']++;
-        }
-    } else {
-        // Code doesn't exist, create it
-        echo "  → Booking {$bookingId} ({$guestName}): Creating new code...\n";
-        
-        $pinCode = generatePIN($config['code_settings']['length'] ?? 4);
-        $times = $config['default_times'];
-        $result = $keysApi->createCode(
-            $lockId,
-            $idAccessoire,
-            $guestName,
-            $pinCode,
-            $arrival,
-            $departure,
-            $times['check_in_hour'],
-            $times['check_in_minute'],
-            $times['check_out_hour'],
-            $times['check_out_minute'],
-            "Smoobu#{$bookingId}"
-        );
-        
-        if ($result) {
-            $prefix = $config['digicode_prefixes'][$lockId] ?? '';
-            echo "    ✓ Created code {$prefix}{$pinCode}\n";
+            echo "    [DRY RUN] Would create new code\n";
             $stats['created']++;
-        } else {
-            echo "    ✗ Failed to create code\n";
-            $stats['errors']++;
         }
     }
 }
@@ -219,8 +244,42 @@ echo "  ⚠ Skipped: {$stats['skipped']}\n";
 echo "  ✗ Errors: {$stats['errors']}\n";
 
 echo "\n============================================\n";
-echo "Manual sync complete!\n";
-echo "============================================\n";
+if (!$apply) {
+    echo "🔍 DRY RUN COMPLETE - No changes made\n";
+    echo "============================================\n\n";
+    
+    if ($stats['created'] > 0 || $stats['updated'] > 0) {
+        echo "To apply these changes, run:\n";
+        echo "  php manual_sync.php --apply\n\n";
+        echo "This will:\n";
+        if ($stats['created'] > 0) {
+            echo "  • Create {$stats['created']} missing code(s)\n";
+        }
+        if ($stats['updated'] > 0) {
+            echo "  • Update {$stats['updated']} code(s) with new dates\n";
+        }
+        echo "  • Send SMS notifications to guests\n";
+        echo "  • Send email notifications via Smoobu\n";
+    } else {
+        echo "✓ All bookings are already synced!\n";
+        echo "  No changes needed.\n";
+    }
+} else {
+    echo "✅ SYNC COMPLETE - Changes applied\n";
+    echo "============================================\n\n";
+    
+    if ($stats['created'] > 0 || $stats['updated'] > 0) {
+        echo "Actions completed:\n";
+        if ($stats['created'] > 0) {
+            echo "  ✓ Created {$stats['created']} code(s)\n";
+        }
+        if ($stats['updated'] > 0) {
+            echo "  ✓ Updated {$stats['updated']} code(s)\n";
+        }
+        echo "\nNote: SMS and email notifications were sent to affected guests.\n";
+    }
+}
+echo "\n";
 
 /**
  * Generate random PIN
