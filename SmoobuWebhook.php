@@ -333,6 +333,37 @@ class SmoobuWebhook {
         return $pin;
     }
     
+    private function loadLanguage($language, $booking, $fullPin, $apartmentName) {
+        $langFile = __DIR__ . "/languages/{$language}.php";
+        
+        // Default to English if language file doesn't exist
+        if (!file_exists($langFile)) {
+            $langFile = __DIR__ . "/languages/en.php";
+        }
+        
+        $lang = require $langFile;
+        
+        // Replace placeholders
+        $replacements = [
+            '{guest_name}' => $booking['guest-name'] ?? 'Guest',
+            '{apartment_name}' => $apartmentName,
+            '{full_pin}' => $fullPin,
+            '{arrival}' => $booking['arrival'] ?? '',
+            '{departure}' => $booking['departure'] ?? ''
+        ];
+        
+        $message = str_replace(
+            array_keys($replacements),
+            array_values($replacements),
+            $lang['message']
+        );
+        
+        return [
+            'subject' => $lang['subject'],
+            'message' => $message
+        ];
+    }
+    
     private function sendSMSNotification($booking, $fullPin, $apartmentName, $action = 'new') {
         $smsfactorConfig = $this->config['smsfactor'] ?? [];
         $apiToken = $smsfactorConfig['api_token'] ?? '';
