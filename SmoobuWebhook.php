@@ -357,12 +357,17 @@ class SmoobuWebhook {
             $guestPhone = str_replace([' ', '(', ')', '-'], '', $guestPhone);
         }
         
-        // Build recipient list: guest phone + configured admin phones
+        // Only send SMS to guest (not admin to save costs)
         $recipients = [];
         if (!empty($guestPhone)) {
             $recipients[] = $guestPhone;
         }
-        $recipients = array_merge($recipients, $adminRecipients);
+        
+        // If no guest phone, don't send any SMS
+        if (empty($recipients)) {
+            $this->log("No guest phone number, skipping SMS", 'DEBUG');
+            return false;
+        }
         
         // Create SMS message based on action
         switch ($action) {
