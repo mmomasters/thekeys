@@ -195,8 +195,31 @@ class SmoobuWebhook {
         }
         
         $bookingId = $booking['id'];
-        $existingCode = $this->findExistingCode($lockId, $bookingId);
         
+        // Search for existing code across ALL locks (apartment might have changed)
+        $existingCode = null;
+        $existingLockId = null;
+        
+        foreach ($this->config['lock_accessoires'] as $searchLockId => $accessoire) {
+            $code = $this->findExistingCode($searchLockId, $bookingId);
+            if ($code) {
+                $existingCode = $code;
+                $existingLockId = $searchLockId;
+                break;
+            }
+        }
+        
+        // If code exists but on WRONG lock (apartment changed), delete old and create new
+        if ($existingCode && $existingLockId != $lockId) {
+            $this->log("Booking {$bookingId} moved from lock {$existingLockId} to lock {$lockId}, deleting old code");
+            $this->keysApi->deleteCode($existingCode['id']);
+            $this->logSyncOperation($bookingId, $existingCode['id'], 'delete', true);
+            
+            // Create new code on correct lock
+            return $this->handleNewReservation($booking);
+        }
+        
+        // Code not found anywhere? Create new
         if (!$existingCode) {
             $this->log("Code not found for booking {$bookingId}, creating new one");
             return $this->handleNewReservation($booking);
