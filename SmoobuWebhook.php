@@ -393,7 +393,7 @@ class SmoobuWebhook {
             $params = [
                 'to' => $recipient,
                 'text' => $message,
-                'sender' => 'KolnaApts'
+                'sender' => 'KOLNA'
             ];
             
             $url = "https://api.smsfactor.com/send?" . http_build_query($params);
