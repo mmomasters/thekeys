@@ -359,7 +359,7 @@ class SmoobuWebhook {
             $eventType,
             $bookingId,
             json_encode($payload),
-            false
+            0  // Use 0 instead of false for MySQL compatibility
         ]);
         
         return $this->db->lastInsertId();
