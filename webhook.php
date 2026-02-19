@@ -54,12 +54,24 @@ $bookingData = $payload['data'] ?? $payload['booking'] ?? $payload;
 
 // Map Smoobu actions to our event types
 $eventTypeMap = [
-    'newReservation' => 'reservation.new',
+    'newReservation'    => 'reservation.new',
     'cancelReservation' => 'reservation.cancelled',
     'updateReservation' => 'reservation.updated',
+    // Explicitly ignore non-reservation actions
+    'newMessage'        => 'ignore',
+    'updateRates'       => 'ignore',
+    'newTimelineEvent'  => 'ignore',
+    'deleteTimelineEvent' => 'ignore',
 ];
 
-$eventType = $eventTypeMap[$action] ?? 'reservation.updated';
+$eventType = $eventTypeMap[$action] ?? 'ignore';
+
+// Silently ignore non-reservation events
+if ($eventType === 'ignore') {
+    http_response_code(200);
+    echo json_encode(['success' => true, 'result' => 'ignored', 'action' => $action]);
+    exit;
+}
 
 // For cancelled bookings, check the type field too
 if (isset($bookingData['type']) && $bookingData['type'] === 'cancellation') {
