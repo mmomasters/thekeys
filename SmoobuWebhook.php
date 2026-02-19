@@ -260,6 +260,9 @@ class SmoobuWebhook {
             $fullPin = $prefix . $existingPin;
             $this->sendSMSNotification($booking, $fullPin, $apartmentName, 'update');
             
+            // Send updated PIN message to guest via Smoobu
+            $this->sendPINToGuest($booking, $fullPin, $apartmentName);
+            
             return ['status' => 'updated', 'code_id' => $existingCode['id']];
         }
         
@@ -447,6 +450,7 @@ class SmoobuWebhook {
     
     private function sendPINToGuest($booking, $fullPin, $apartmentName) {
         $bookingId = $booking['id'];
+        $guestName = $booking['guest-name'] ?? 'Guest';
         $language = strtolower($booking['language'] ?? 'en');
         
         // Load message from language file
