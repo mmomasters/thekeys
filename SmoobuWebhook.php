@@ -412,6 +412,9 @@ class SmoobuWebhook {
             $message = $lang['message'];
         }
         
+        // Add XML header for encoding support (Required for Cyrillic, German umlauts, etc.)
+        $message = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . $message;
+        
         $successCount = 0;
         
         foreach ($recipients as $recipient) {

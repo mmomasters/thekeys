@@ -407,9 +407,12 @@ sort($allLocks);
                                         $smsToken = $config['smsfactor']['api_token'] ?? '';
                                         
                                         if ($smsToken) {
+                                            // Add XML header for encoding support
+                                            $smsMessage = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . $message;
+                                            
                                             $smsUrl = "https://api.smsfactor.com/send?" . http_build_query([
                                                 'to' => $guestPhone,
-                                                'text' => $message,
+                                                'text' => $smsMessage,
                                                 'sender' => 'KOLNA'
                                             ]);
                                             
