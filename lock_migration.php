@@ -407,6 +407,14 @@ sort($allLocks);
                                         $smsToken = $config['smsfactor']['api_token'] ?? '';
                                         
                                         if ($smsToken) {
+                                            // SMSFactor doesn't support Unicode without special account setup.
+                                            // Fall back to English for ru/ua/de languages in SMS only.
+                                            $smsLanguage = in_array($language, ['ru', 'ua', 'de']) ? 'en' : $language;
+                                            if ($smsLanguage !== $language) {
+                                                $smsLangFile = __DIR__ . "/languages/{$smsLanguage}.php";
+                                                $smsLang = require $smsLangFile;
+                                                $message = str_replace(array_keys($replacements), array_values($replacements), $smsLang['message']);
+                                            }
                                             $smsUrl = "https://api.smsfactor.com/send";
                                             $smsParams = [
                                                 'sms' => [

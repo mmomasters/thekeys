@@ -404,11 +404,15 @@ class SmoobuWebhook {
         // Get language for multilingual message
         $language = strtolower($booking['language'] ?? 'en');
         
+        // SMSFactor does not support Unicode (Cyrillic, German umlauts) without special account setup.
+        // Fall back to English for SMS only. Smoobu email (sendPINToGuest) still uses native language.
+        $smsLanguage = in_array($language, ['ru', 'ua', 'de']) ? 'en' : $language;
+        
         // Load message from language file
         if ($action == 'cancel') {
             $message = "CANCELLED: Kolna Apartments reservation {$apartmentName} ({$arrival} to {$departure}) has been cancelled.";
         } else {
-            $lang = $this->loadLanguage($language, $booking, $fullPin, $apartmentName);
+            $lang = $this->loadLanguage($smsLanguage, $booking, $fullPin, $apartmentName);
             $message = $lang['message'];
         }
         
