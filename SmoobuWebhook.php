@@ -415,23 +415,32 @@ class SmoobuWebhook {
         $successCount = 0;
         
         foreach ($recipients as $recipient) {
-            // Use POST with JSON to support Unicode (Cyrillic, Umlauts, etc.)
+            // Use Campaign POST endpoint for Unicode support (Cyrillic, Umlauts, etc.) and custom sender
             $url = "https://api.smsfactor.com/send";
             
             $params = [
-                'to' => $recipient,
-                'text' => $message,
-                'sender' => 'KOLNA'
+                'sms' => [
+                    'message' => [
+                        'text' => $message,
+                        'pushtype' => 'alert',
+                        'sender' => 'KOLNA'
+                    ],
+                    'recipients' => [
+                        'gsm' => [
+                            ['value' => $recipient]
+                        ]
+                    ]
+                ]
             ];
             
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Authorization: Bearer ' . $apiToken,
                 'Accept: application/json',
-                'Content-Type: application/x-www-form-urlencoded'
+                'Content-Type: application/json'
             ]);
             
             $response = curl_exec($ch);

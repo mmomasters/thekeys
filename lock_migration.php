@@ -409,16 +409,25 @@ sort($allLocks);
                                         if ($smsToken) {
                                             $smsUrl = "https://api.smsfactor.com/send";
                                             $smsParams = [
-                                                'to' => $guestPhone,
-                                                'text' => $message,
-                                                'sender' => 'KOLNA'
+                                                'sms' => [
+                                                    'message' => [
+                                                        'text' => $message,
+                                                        'pushtype' => 'alert',
+                                                        'sender' => 'KOLNA'
+                                                    ],
+                                                    'recipients' => [
+                                                        'gsm' => [
+                                                            ['value' => $guestPhone]
+                                                        ]
+                                                    ]
+                                                ]
                                             ];
                                             
                                             $ch = curl_init($smsUrl);
                                             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                                             curl_setopt($ch, CURLOPT_POST, true);
-                                            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($smsParams));
-                                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $smsToken, 'Accept: application/json', 'Content-Type: application/x-www-form-urlencoded']);
+                                            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($smsParams));
+                                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $smsToken, 'Accept: application/json', 'Content-Type: application/json']);
                                             $smsResponse = curl_exec($ch);
                                             $smsCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                                             $smsData = json_decode($smsResponse, true);
