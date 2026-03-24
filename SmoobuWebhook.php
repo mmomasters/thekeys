@@ -412,26 +412,26 @@ class SmoobuWebhook {
             $message = $lang['message'];
         }
         
-        // Add XML header for encoding support (Required for Cyrillic, German umlauts, etc.)
-        $message = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . $message;
-        
         $successCount = 0;
         
         foreach ($recipients as $recipient) {
-            // SMSFactor uses GET with query parameters
+            // Use POST with JSON to support Unicode (Cyrillic, Umlauts, etc.)
+            $url = "https://api.smsfactor.com/send";
+            
             $params = [
                 'to' => $recipient,
                 'text' => $message,
                 'sender' => 'KOLNA'
             ];
             
-            $url = "https://api.smsfactor.com/send?" . http_build_query($params);
-            
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Authorization: Bearer ' . $apiToken,
-                'Accept: application/json'
+                'Accept: application/json',
+                'Content-Type: application/json'
             ]);
             
             $response = curl_exec($ch);

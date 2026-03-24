@@ -407,18 +407,18 @@ sort($allLocks);
                                         $smsToken = $config['smsfactor']['api_token'] ?? '';
                                         
                                         if ($smsToken) {
-                                            // Add XML header for encoding support
-                                            $smsMessage = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . $message;
-                                            
-                                            $smsUrl = "https://api.smsfactor.com/send?" . http_build_query([
+                                            $smsUrl = "https://api.smsfactor.com/send";
+                                            $smsParams = [
                                                 'to' => $guestPhone,
-                                                'text' => $smsMessage,
+                                                'text' => $message,
                                                 'sender' => 'KOLNA'
-                                            ]);
+                                            ];
                                             
                                             $ch = curl_init($smsUrl);
                                             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $smsToken, 'Accept: application/json']);
+                                            curl_setopt($ch, CURLOPT_POST, true);
+                                            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($smsParams));
+                                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $smsToken, 'Accept: application/json', 'Content-Type: application/json']);
                                             $smsResponse = curl_exec($ch);
                                             $smsCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                                             $smsData = json_decode($smsResponse, true);
