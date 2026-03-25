@@ -368,9 +368,8 @@ class SmoobuWebhook {
     }
     
     private function sendSMSNotification($booking, $fullPin, $apartmentName, $action = 'new') {
-        $smsfactorConfig = $this->config['smsfactor'] ?? [];
-        $apiToken = $smsfactorConfig['api_token'] ?? '';
-        $adminRecipients = $smsfactorConfig['recipients'] ?? [];
+        $serwersmsConfig = $this->config['serwersms'] ?? [];
+        $apiToken = $serwersmsConfig['api_token'] ?? '';
         
         if (empty($apiToken)) {
             $this->log("SMS notifications disabled (no token)", 'DEBUG');
@@ -403,60 +402,47 @@ class SmoobuWebhook {
         
         // Get language for multilingual message
         $language = strtolower($booking['language'] ?? 'en');
-        
-        // SMSFactor does not support Unicode (Cyrillic, German umlauts) without special account setup.
-        // Fall back to English for SMS only. Smoobu email (sendPINToGuest) still uses native language.
-        $smsLanguage = in_array($language, ['ru', 'ua', 'de']) ? 'en' : $language;
-        
+
         // Load message from language file
         if ($action == 'cancel') {
             $message = "CANCELLED: Kolna Apartments reservation {$apartmentName} ({$arrival} to {$departure}) has been cancelled.";
         } else {
-            $lang = $this->loadLanguage($smsLanguage, $booking, $fullPin, $apartmentName);
+            $lang = $this->loadLanguage($language, $booking, $fullPin, $apartmentName);
             $message = $lang['message'];
         }
         
         $successCount = 0;
         
         foreach ($recipients as $recipient) {
-            // Use Campaign POST endpoint for Unicode support (Cyrillic, Umlauts, etc.) and custom sender
-            $url = "https://api.smsfactor.com/send";
-            
-            $params = [
-                'sms' => [
-                    'message' => [
-                        'text' => $message,
-                        'pushtype' => 'alert',
-                        'sender' => 'KOLNA'
-                    ],
-                    'recipients' => [
-                        'gsm' => [
-                            ['value' => $recipient]
-                        ]
-                    ]
-                ]
-            ];
-            
+            $url = "https://api2.serwersms.pl/messages/send_sms";
+
+            $params = http_build_query([
+                'phone'  => $recipient,
+                'text'   => $message,
+                'sender' => 'KOLNA',
+                'utf'    => 'true',
+            ]);
+
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Authorization: Bearer ' . $apiToken,
                 'Accept: application/json',
-                'Content-Type: application/json'
+                'Content-Type: application/x-www-form-urlencoded'
             ]);
-            
+
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $responseData = json_decode($response, true);
             curl_close($ch);
-            
-            if ($httpCode === 200 && isset($responseData['status']) && $responseData['status'] == 1) {
-                $this->log("Sent SMS to {$recipient} for booking {$bookingId} (ticket: {$responseData['ticket']})");
+
+            if ($httpCode === 200 && !empty($responseData['success'])) {
+                $this->log("Sent SMS to {$recipient} for booking {$bookingId}");
                 $successCount++;
             } else {
-                $errorMsg = $responseData['message'] ?? 'Unknown error';
+                $errorMsg = $responseData['error']['description'] ?? ($responseData['message'] ?? 'Unknown error');
                 $this->log("Failed to send SMS to {$recipient}: HTTP {$httpCode} - {$errorMsg} - {$response}", 'WARNING');
             }
         }

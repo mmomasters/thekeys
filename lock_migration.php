@@ -404,44 +404,28 @@ sort($allLocks);
                                     $guestPhone = $booking['phone'] ?? '';
                                     if ($guestPhone) {
                                         $guestPhone = str_replace([' ', '(', ')', '-'], '', $guestPhone);
-                                        $smsToken = $config['smsfactor']['api_token'] ?? '';
-                                        
+                                        $smsToken = $config['serwersms']['api_token'] ?? '';
+
                                         if ($smsToken) {
-                                            // SMSFactor doesn't support Unicode without special account setup.
-                                            // Fall back to English for ru/ua/de languages in SMS only.
-                                            $smsLanguage = in_array($language, ['ru', 'ua', 'de']) ? 'en' : $language;
-                                            if ($smsLanguage !== $language) {
-                                                $smsLangFile = __DIR__ . "/languages/{$smsLanguage}.php";
-                                                $smsLang = require $smsLangFile;
-                                                $message = str_replace(array_keys($replacements), array_values($replacements), $smsLang['message']);
-                                            }
-                                            $smsUrl = "https://api.smsfactor.com/send";
-                                            $smsParams = [
-                                                'sms' => [
-                                                    'message' => [
-                                                        'text' => $message,
-                                                        'pushtype' => 'alert',
-                                                        'sender' => 'KOLNA'
-                                                    ],
-                                                    'recipients' => [
-                                                        'gsm' => [
-                                                            ['value' => $guestPhone]
-                                                        ]
-                                                    ]
-                                                ]
-                                            ];
-                                            
+                                            $smsUrl = "https://api2.serwersms.pl/messages/send_sms";
+                                            $smsParams = http_build_query([
+                                                'phone'  => $guestPhone,
+                                                'text'   => $message,
+                                                'sender' => 'KOLNA',
+                                                'utf'    => 'true',
+                                            ]);
+
                                             $ch = curl_init($smsUrl);
                                             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                                             curl_setopt($ch, CURLOPT_POST, true);
-                                            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($smsParams));
-                                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $smsToken, 'Accept: application/json', 'Content-Type: application/json']);
+                                            curl_setopt($ch, CURLOPT_POSTFIELDS, $smsParams);
+                                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $smsToken, 'Accept: application/json', 'Content-Type: application/x-www-form-urlencoded']);
                                             $smsResponse = curl_exec($ch);
                                             $smsCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                                             $smsData = json_decode($smsResponse, true);
                                             curl_close($ch);
-                                            
-                                            if ($smsCode == 200 && isset($smsData['status']) && $smsData['status'] == 1) {
+
+                                            if ($smsCode == 200 && !empty($smsData['success'])) {
                                                 echo '<div class="code-detail ok">✓ SMS sent</div>';
                                                 $stats['sms_sent']++;
                                             }

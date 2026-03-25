@@ -25,10 +25,9 @@ return [
         'api_key' => 'your_smoobu_api_key'
     ],
     
-    // SMSFactor API configuration (optional - SMS sent to guest's phone only)
-    'smsfactor' => [
-        'api_token' => 'your_smsfactor_api_token',
-        'recipients' => []  // Not used - SMS sent to guest's phone from booking
+    // SerwerSMS API configuration (optional - SMS sent to guest's phone only)
+    'serwersms' => [
+        'api_token' => 'your_serwersms_api_token',
     ],
     
     // Mapping: Smoobu Apartment ID -> The Keys Lock ID
