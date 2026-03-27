@@ -56,25 +56,32 @@ return [
     'database' => [
         'host' => 'localhost',
         'database' => 'thekeys',
-        'username' => 'your_db_user',
-        'password' => 'your_db_password'
+        'username' => 'your_db_username',
+        'password' => 'your_db_password',
+        'charset' => 'utf8mb4'
     ],
     'thekeys' => [
-        'username' => '+33650868488',
-        'password' => 'your_password'
+        'username' => 'your_thekeys_username',
+        'password' => 'your_thekeys_password'
     ],
     'smoobu' => [
         'api_key' => 'your_smoobu_api_key'
     ],
-    'smsfactor' => [
-        'api_token' => 'your_sms_token',
-        'recipients' => ['+48503165434']
+    'serwersms' => [
+        'api_token' => 'your_serwersms_api_token',
     ],
     'apartment_locks' => [
-        '505200' => 3723   // Smoobu Apartment ID => Lock ID
+        '123456' => 3733,  // Smoobu Apartment ID => Lock ID
     ],
     'lock_accessoires' => [
-        3723 => 'OXe37UIa'   // Lock ID => STRING accessoire ID
+        3733 => 'OXe37UIa',  // Lock ID => STRING accessoire ID
+    ],
+    'digicode_prefixes' => [
+        3733 => '28',  // Lock ID => 2-digit PIN prefix
+    ],
+    'webhook' => [
+        'secret' => '',         // Optional: Smoobu webhook secret
+        'ip_whitelist' => []    // Optional: ['1.2.3.4']
     ]
 ];
 ```
@@ -115,9 +122,8 @@ Smoobu Event → webhook.php
 
 ### SMS Notifications
 
-Automatic SMS sent via SMSFactor to:
-- **Guest's phone** (from booking) - Receives PIN code
-- **Admin phone(s)** (from config) - Receives all notifications
+Automatic SMS sent via SerwerSMS to:
+- **Guest's phone** (from booking) - Receives PIN code with check-in/out details
 
 **Example SMS:**
 ```
@@ -138,7 +144,7 @@ Multilingual email sent to guest with:
 - Parking information
 - Contact phone
 
-Languages supported: English, German, Polish
+Languages supported: English, German, Polish, Russian, Ukrainian
 
 ## API Endpoints Used
 
@@ -176,11 +182,11 @@ POST /fr/api/v2/partage/accessoire/delete/{code_id}
 POST /api/reservations/{booking_id}/messages/send-message-to-guest
 ```
 
-### SMSFactor API
+### SerwerSMS API
 
 **Send SMS:**
 ```
-POST /send
+POST https://api2.serwersms.pl/messages/send_sms
 Authorization: Bearer {token}
 ```
 
@@ -224,8 +230,8 @@ Find STRING IDs by calling the LIST endpoint.
 1. Smoobu Settings → API
 2. Generate/copy key
 
-**SMSFactor API Token:**
-1. Login to SMSFactor
+**SerwerSMS API Token:**
+1. Login to SerwerSMS
 2. Go to API section
 3. Generate/copy token
 
@@ -289,7 +295,7 @@ See [SECURITY.md](SECURITY.md) for details.
 
 ### SMS Not Sending
 
-1. Verify SMSFactor token in config
+1. Verify SerwerSMS token in config
 2. Check logs for HTTP status codes
 3. Verify phone numbers are in international format
 
