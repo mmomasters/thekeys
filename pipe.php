@@ -7,12 +7,6 @@ $logFile = "/tmp/ifttt.log";
 
 // Read full email from stdin
 $mail = file_get_contents("php://stdin");
-
-// DEBUG: log everything including raw email
-$debugFile = "/tmp/pipe_debug.log";
-$debugEntry = "=== " . date('Y-m-d H:i:s') . " ===\n" . $mail . "\n\n";
-@file_put_contents($debugFile, $debugEntry, FILE_APPEND | LOCK_EX);
-
 if ($mail === false || trim($mail) === '') {
     exit(0);
 }
