@@ -410,12 +410,18 @@ class SmoobuWebhook {
         // Get language for multilingual message
         $language = strtolower($booking['language'] ?? 'en');
 
-        // Load message from language file (use short sms_message to stay within SMS character limits)
+        // Load message from language file
         if ($action == 'cancel') {
             $message = "CANCELLED: Kolna Apartments reservation {$apartmentName} ({$arrival} to {$departure}) has been cancelled.";
         } else {
             $lang = $this->loadLanguage($language, $booking, $fullPin, $apartmentName);
-            $message = $lang['sms_message'];
+            $message = $lang['sms_message'] ?? $lang['message'];
+            if ($language === 'pl') {
+                $message = strtr($message, [
+                    'ą'=>'a','ć'=>'c','ę'=>'e','ł'=>'l','ń'=>'n','ó'=>'o','ś'=>'s','ź'=>'z','ż'=>'z',
+                    'Ą'=>'A','Ć'=>'C','Ę'=>'E','Ł'=>'L','Ń'=>'N','Ó'=>'O','Ś'=>'S','Ź'=>'Z','Ż'=>'Z',
+                ]);
+            }
         }
         
         $successCount = 0;
@@ -423,12 +429,15 @@ class SmoobuWebhook {
         foreach ($recipients as $recipient) {
             $url = "https://api2.serwersms.pl/messages/send_sms";
 
-            $params = http_build_query([
+            $smsParams = [
                 'phone'  => $recipient,
                 'text'   => $message,
                 'sender' => 'KOLNA',
-                'utf'    => 'true',
-            ]);
+            ];
+            if (in_array($language, ['ru', 'ua'])) {
+                $smsParams['utf'] = 'true';
+            }
+            $params = http_build_query($smsParams);
 
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

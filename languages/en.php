@@ -6,23 +6,6 @@
 return [
     'subject' => 'Kolna Apartments access codes and information',
 
-    'sms_message' => 'Dear {guest_name},
-
-- Main building "Jana z Kolna 19" code is 1 + KEY + 5687
-- Lobby door code is 3256 + ENTER
-- Apartment {apartment_name} door code is {full_pin} + BLUE BUTTON
-
-Code valid only during your stay.
-Your check in: {arrival} from 15.00
-Your check out: {departure} until 12.00
-
-PARKING : You can park on the street. Parking is free from 17h00 to 08h00 and during weekends and holidays.
-
-In case of any issue, please feel free to call us +48 91 819 99 65
-
-Have a nice stay!
-Kolna Apartments',
-
     'message' => 'Dear {guest_name},
 
 - Main building "Jana z Kolna 19" code is 1 + KEY + 5687
