@@ -364,7 +364,7 @@ class SmoobuWebhook {
         $smsMessage = str_replace(
             array_keys($replacements),
             array_values($replacements),
-            $lang['sms_message']
+            $lang['sms_message'] ?? $lang['message']
         );
 
         return [
