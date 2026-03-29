@@ -5,7 +5,16 @@
 
 return [
     'subject' => 'Zugangscodes für die Kolna Apartments',
-    
+
+    'sms_message' => '{guest_name}, Kolna Apartments Codes:
+Gebäude: 1+SCHLÜSSEL+5687
+Lobby: 3256+ENTER
+{apartment_name}: {full_pin}+BLAUE TASTE
+Check-in: {arrival} 15:00
+Check-out: {departure} 12:00
+Hilfe: +48 91 819 99 65
+Details wurden an Ihre E-Mail gesendet.',
+
     'message' => 'Lieber, Herr {guest_name},
 
 - Hauptgebäude "Jana z Kolna 19" Code ist 1 + SCHLÜSSEL + 5687

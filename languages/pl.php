@@ -5,7 +5,16 @@
 
 return [
     'subject' => 'Kody dostępu do Kolna Apartments',
-    
+
+    'sms_message' => '{guest_name}, kody Kolna Apartments:
+Budynek: 1+KLUCZ+5687
+Recepcja: 3256+ENTER
+{apartment_name}: {full_pin}+NIEBIESKI PRZYCISK
+Zameldowanie: {arrival} 15:00
+Wymeldowanie: {departure} 12:00
+Pomoc: +48 91 819 99 65
+Szczegóły wysłane na Twój email.',
+
     'message' => 'Pan, Pani {guest_name},
 
 - Kod budynku głównego "Jana z Kolna 19" to 1 + KLUCZ + 5687

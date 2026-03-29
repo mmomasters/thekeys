@@ -5,7 +5,16 @@
 
 return [
     'subject' => 'Коды доступа Kolna Apartments',
-    
+
+    'sms_message' => '{guest_name}, коды Kolna:
+Здание: 1+КЛЮЧ+5687
+Холл: 3256+ENTER
+{apartment_name}: {full_pin}+СИНЯЯ КНОПКА
+Заезд: {arrival} 15:00
+Выезд: {departure} 12:00
+Помощь: +48 91 819 99 65
+Подробности отправлены на ваш email.',
+
     'message' => 'Уважаемый {guest_name},
 
 - Код главного здания "Jana z Kolna 19" - 1 + КЛЮЧ + 5687

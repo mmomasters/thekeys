@@ -5,7 +5,16 @@
 
 return [
     'subject' => 'Kolna Apartments access codes and information',
-    
+
+    'sms_message' => '{guest_name}, Kolna Apartments codes:
+Building: 1+KEY+5687
+Lobby: 3256+ENTER
+{apartment_name}: {full_pin}+BLUE BUTTON
+Check-in: {arrival} 15:00
+Check-out: {departure} 12:00
+Help: +48 91 819 99 65
+Full details sent to your email.',
+
     'message' => 'Dear {guest_name},
 
 - Main building "Jana z Kolna 19" code is 1 + KEY + 5687

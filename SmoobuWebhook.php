@@ -360,10 +360,17 @@ class SmoobuWebhook {
             array_values($replacements),
             $lang['message']
         );
-        
+
+        $smsMessage = str_replace(
+            array_keys($replacements),
+            array_values($replacements),
+            $lang['sms_message']
+        );
+
         return [
-            'subject' => $lang['subject'],
-            'message' => $message
+            'subject'     => $lang['subject'],
+            'message'     => $message,
+            'sms_message' => $smsMessage
         ];
     }
     
@@ -403,12 +410,12 @@ class SmoobuWebhook {
         // Get language for multilingual message
         $language = strtolower($booking['language'] ?? 'en');
 
-        // Load message from language file
+        // Load message from language file (use short sms_message to stay within SMS character limits)
         if ($action == 'cancel') {
             $message = "CANCELLED: Kolna Apartments reservation {$apartmentName} ({$arrival} to {$departure}) has been cancelled.";
         } else {
             $lang = $this->loadLanguage($language, $booking, $fullPin, $apartmentName);
-            $message = $lang['message'];
+            $message = $lang['sms_message'];
         }
         
         $successCount = 0;
