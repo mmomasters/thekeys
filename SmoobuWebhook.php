@@ -336,7 +336,7 @@ class SmoobuWebhook {
         return $pin;
     }
     
-    private function loadLanguage($language, $booking, $fullPin, $apartmentName) {
+    public function loadLanguage($language, $booking, $fullPin, $apartmentName) {
         $langFile = __DIR__ . "/languages/{$language}.php";
         
         // Default to English if language file doesn't exist
@@ -374,7 +374,7 @@ class SmoobuWebhook {
         ];
     }
     
-    private function sendSMSNotification($booking, $fullPin, $apartmentName, $action = 'new') {
+    public function sendSMSNotification($booking, $fullPin, $apartmentName, $action = 'new') {
         $serwersmsConfig = $this->config['serwersms'] ?? [];
         $apiToken = $serwersmsConfig['api_token'] ?? '';
         
@@ -466,7 +466,7 @@ class SmoobuWebhook {
         return $successCount > 0;
     }
     
-    private function sendPINToGuest($booking, $fullPin, $apartmentName) {
+    public function sendPINToGuest($booking, $fullPin, $apartmentName) {
         $bookingId = $booking['id'];
         $guestName = $booking['guest-name'] ?? 'Guest';
         $language = strtolower($booking['language'] ?? 'en');

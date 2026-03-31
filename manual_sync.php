@@ -20,6 +20,7 @@ if (!$allowedIPs || !in_array($visitorIP, $allowedIPs)) {
 
 require_once 'config.php';
 require_once 'TheKeysAPI.php';
+require_once 'SmoobuWebhook.php';
 
 $config = require 'config.php';
 
@@ -169,7 +170,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             <span class="mode-badge mode-apply">✅ APPLY MODE</span>
             <div class="alert alert-success">
                 <strong>Applying Changes</strong><br>
-                Changes are being applied (No guest notifications will be sent).
+                Changes are being applied (Guest notifications sent ONLY for new codes).
             </div>
         <?php endif; ?>
 
@@ -276,6 +277,8 @@ $apply = ($_GET['apply'] ?? false) == '1';
             'errors' => 0,
             'skipped' => 0
         ];
+
+        $webhookHandler = new SmoobuWebhook($config);
 
         foreach ($bookings as $booking) {
             $bookingId = $booking['id'];
@@ -409,8 +412,37 @@ $apply = ($_GET['apply'] ?? false) == '1';
                     
                     if ($result) {
                         $prefix = $config['digicode_prefixes'][$lockId] ?? '';
-                        echo '<div class="booking-detail ok">✓ Created code ' . $prefix . $pinCode . '</div>';
+                        $fullPin = $prefix . $pinCode;
+                        echo '<div class="booking-detail ok">✓ Created code ' . $fullPin . '</div>';
                         $stats['created']++;
+                        
+                        // Send notifications for NEW codes
+                        try {
+                            // Fetch full booking details for phone/language
+                            $detailUrl = "https://login.smoobu.com/api/reservations/{$bookingId}";
+                            $chDet = curl_init($detailUrl);
+                            curl_setopt($chDet, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($chDet, CURLOPT_HTTPHEADER, ['Api-Key: ' . $smoobuApiKey]);
+                            $detailResponse = curl_exec($chDet);
+                            $detailBooking = json_decode($detailResponse, true);
+                            curl_close($chDet);
+                            
+                            if ($detailBooking) {
+                                $apartmentName = $detailBooking['apartment']['name'] ?? 'your apartment';
+                                
+                                // SMS
+                                if ($webhookHandler->sendSMSNotification($detailBooking, $fullPin, $apartmentName)) {
+                                    echo '<div class="booking-detail ok">✓ SMS sent to guest</div>';
+                                }
+                                
+                                // Email (via Smoobu)
+                                if ($webhookHandler->sendPINToGuest($detailBooking, $fullPin, $apartmentName)) {
+                                    echo '<div class="booking-detail ok">✓ Email sent via Smoobu</div>';
+                                }
+                            }
+                        } catch (Exception $e) {
+                            echo '<div class="booking-detail error">⚠ Notification failed: ' . htmlspecialchars($e->getMessage()) . '</div>';
+                        }
                     } else {
                         echo '<div class="booking-detail error">✗ Failed to create code</div>';
                         $stats['errors']++;
@@ -441,7 +473,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             if ($stats['created'] > 0 || $stats['updated'] > 0) {
                 echo '<div class="alert alert-warning">';
                 echo '<strong>Ready to apply changes?</strong><br>';
-                echo 'Click the button below to update existing codes or create missing ones.';
+                echo 'Click the button below to update existing codes or create missing ones. Guest notifications will ONLY be sent for NEWLY created codes.';
                 echo '</div>';
                 echo '<a href="?apply=1" class="button button-success">✅ Apply Changes</a>';
                 echo '<a href="?" class="button">🔄 Refresh Preview</a>';
@@ -456,7 +488,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             echo '<div class="alert alert-success">';
             echo '<strong>✅ Sync Complete!</strong><br>';
             if ($stats['created'] > 0 || $stats['updated'] > 0) {
-                echo 'Changes have been applied. Smoobu IDs have been linked where necessary.';
+                echo 'Changes have been applied. Smoobu IDs linked. Guest notifications sent for ' . $stats['created'] . ' new code(s).';
             } else {
                 echo 'All bookings were already in sync.';
             }
