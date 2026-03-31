@@ -169,7 +169,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             <span class="mode-badge mode-apply">✅ APPLY MODE</span>
             <div class="alert alert-success">
                 <strong>Applying Changes</strong><br>
-                Changes are being applied and notifications will be sent to guests.
+                Changes are being applied (No guest notifications will be sent).
             </div>
         <?php endif; ?>
 
@@ -441,7 +441,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             if ($stats['created'] > 0 || $stats['updated'] > 0) {
                 echo '<div class="alert alert-warning">';
                 echo '<strong>Ready to apply changes?</strong><br>';
-                echo 'Click the button below to create missing codes and send notifications to guests.';
+                echo 'Click the button below to update existing codes or create missing ones.';
                 echo '</div>';
                 echo '<a href="?apply=1" class="button button-success">✅ Apply Changes</a>';
                 echo '<a href="?" class="button">🔄 Refresh Preview</a>';
@@ -456,7 +456,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             echo '<div class="alert alert-success">';
             echo '<strong>✅ Sync Complete!</strong><br>';
             if ($stats['created'] > 0 || $stats['updated'] > 0) {
-                echo 'Changes have been applied. SMS and email notifications were sent to affected guests.';
+                echo 'Changes have been applied. Smoobu IDs have been linked where necessary.';
             } else {
                 echo 'All bookings were already in sync.';
             }
