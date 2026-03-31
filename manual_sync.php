@@ -226,10 +226,14 @@ $apply = ($_GET['apply'] ?? false) == '1';
         echo '<div class="step">';
         echo '<div class="step-title">[3/5] Scanning existing codes in The Keys...</div>';
         $existingCodes = [];
+        $existingCodesByName = [];
         foreach ($config['lock_accessoires'] as $lockId => $accessoireId) {
             $codes = $keysApi->listCodes($lockId);
             foreach ($codes as $code) {
                 $desc = $code['description'] ?? '';
+                $name = $code['nom'] ?? '';
+                
+                // Track by Smoobu ID in description
                 if (preg_match('/Smoobu#(\d+)/', $desc, $matches)) {
                     $bookingId = $matches[1];
                     $existingCodes[$bookingId] = [
@@ -238,7 +242,22 @@ $apply = ($_GET['apply'] ?? false) == '1';
                         'code' => $code['code'],
                         'name' => $code['nom'],
                         'start' => $code['date_debut'],
-                        'end' => $code['date_fin']
+                        'end' => $code['date_fin'],
+                        'description' => $desc
+                    ];
+                }
+                
+                // Also track by normalized name as fallback
+                $normName = normalizeName($name);
+                if ($normName) {
+                    $existingCodesByName[$lockId][$normName] = [
+                        'lock_id' => $lockId,
+                        'code_id' => $code['id'],
+                        'code' => $code['code'],
+                        'name' => $code['nom'],
+                        'start' => $code['date_debut'],
+                        'end' => $code['date_fin'],
+                        'description' => $desc
                     ];
                 }
             }
@@ -260,7 +279,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
 
         foreach ($bookings as $booking) {
             $bookingId = $booking['id'];
-            $guestName = $booking['guest-name'] ?? 'Guest';
+            $guestName = cleanName($booking['guest-name'] ?? 'Guest');
             $arrival = $booking['arrival'] ?? null;
             $departure = $booking['departure'] ?? null;
             $apartmentId = (string)($booking['apartment']['id'] ?? '');
@@ -282,9 +301,22 @@ $apply = ($_GET['apply'] ?? false) == '1';
                 continue;
             }
             
+            $existing = null;
+            $matchedBy = 'id';
+            
+            // Try to match by Smoobu ID
             if (isset($existingCodes[$bookingId])) {
                 $existing = $existingCodes[$bookingId];
-                
+            } else {
+                // Try to match by Name as fallback (important for "smoobu" prefix cases)
+                $normGuestName = normalizeName($guestName);
+                if (isset($existingCodesByName[$lockId][$normGuestName])) {
+                    $existing = $existingCodesByName[$lockId][$normGuestName];
+                    $matchedBy = 'name';
+                }
+            }
+            
+            if ($existing) {
                 if ($existing['lock_id'] != $lockId) {
                     echo '<div class="booking">';
                     echo '<div class="booking-action">→ Booking #' . $bookingId . ' (' . htmlspecialchars($guestName) . ')</div>';
@@ -315,19 +347,33 @@ $apply = ($_GET['apply'] ?? false) == '1';
                     }
                     echo '</div>';
                     
-                } elseif ($existing['start'] != $arrival || $existing['end'] != $departure) {
+                } elseif ($existing['start'] != $arrival || $existing['end'] != $departure || $matchedBy === 'name') {
                     echo '<div class="booking">';
                     echo '<div class="booking-action">→ Booking #' . $bookingId . ' (' . htmlspecialchars($guestName) . ')</div>';
-                    echo '<div class="booking-detail">Dates changed (' . $existing['start'] . '-' . $existing['end'] . ' → ' . $arrival . '-' . $departure . ')</div>';
+                    
+                    if ($matchedBy === 'name') {
+                        echo '<div class="booking-detail ok">✓ Matched by guest name (Linking to existing code)</div>';
+                    }
+                    
+                    if ($existing['start'] != $arrival || $existing['end'] != $departure) {
+                        echo '<div class="booking-detail">Dates changed (' . $existing['start'] . '-' . $existing['end'] . ' → ' . $arrival . '-' . $departure . ')</div>';
+                    }
                     
                     if ($apply) {
                         $times = $config['default_times'];
+                        
+                        // If matched by name, ensure we append Smoobu#ID to description
+                        $newDesc = $existing['description'] ?? '';
+                        if (strpos($newDesc, "Smoobu#{$bookingId}") === false) {
+                            $newDesc = trim($newDesc . " Smoobu#{$bookingId}");
+                        }
+
                         $success = $keysApi->updateCode(
                             $existing['code_id'], $guestName, $existing['code'],
                             $arrival, $departure,
                             $times['check_in_hour'], $times['check_in_minute'],
                             $times['check_out_hour'], $times['check_out_minute'],
-                            true, "Smoobu#{$bookingId}"
+                            true, $newDesc
                         );
                         
                         if ($success) {
@@ -338,7 +384,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
                             $stats['errors']++;
                         }
                     } else {
-                        echo '<div class="booking-detail">[DRY RUN] Would update dates</div>';
+                        echo '<div class="booking-detail">[DRY RUN] Would update dates and link to Smoobu ID</div>';
                         $stats['updated']++;
                     }
                     echo '</div>';
@@ -430,5 +476,15 @@ function generatePIN($length = 4) {
         $pin .= rand(0, 9);
     }
     return $pin;
+}
+
+function normalizeName($name) {
+    // Remove "smoobu" prefix and lowercase for matching
+    return mb_strtolower(cleanName($name));
+}
+
+function cleanName($name) {
+    // Remove "smoobu" prefix case-insensitively
+    return trim(preg_replace('/^smoobu\s+/i', '', $name));
 }
 ?>
