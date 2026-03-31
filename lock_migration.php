@@ -290,6 +290,8 @@ sort($allLocks);
                 'errors' => 0
             ];
             
+            $webhookHandler = new SmoobuWebhook($config);
+            
             $toAccessoire = $config['lock_accessoires'][$toLock] ?? null;
             
             if (!$toAccessoire && $apply) {
@@ -361,75 +363,16 @@ sort($allLocks);
                                     $prefix = $config['digicode_prefixes'][$toLock] ?? '';
                                     $fullPin = $prefix . $codePin;
                                     
-                                    // Initialize webhook handler for notifications
-                                    $webhook = new SmoobuWebhook($config);
-                                    
-                                    // Send SMS (uses private method, so we'll inline it)
                                     // Send email via Smoobu
-                                    $language = strtolower($booking['language'] ?? 'en');
-                                    $langFile = __DIR__ . "/languages/{$language}.php";
-                                    if (!file_exists($langFile)) {
-                                        $langFile = __DIR__ . "/languages/en.php";
-                                    }
-                                    $lang = require $langFile;
-                                    
-                                    $replacements = [
-                                        '{guest_name}' => $booking['guest-name'] ?? 'Guest',
-                                        '{apartment_name}' => $apartmentName,
-                                        '{full_pin}' => $fullPin,
-                                        '{arrival}' => $booking['arrival'] ?? '',
-                                        '{departure}' => $booking['departure'] ?? ''
-                                    ];
-                                    
-                                    $message = str_replace(array_keys($replacements), array_values($replacements), $lang['message']);
-                                    $subject = $lang['subject'];
-                                    
-                                    // Send email
-                                    $emailUrl = "https://login.smoobu.com/api/reservations/{$bookingId}/messages/send-message-to-guest";
-                                    $ch = curl_init($emailUrl);
-                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                    curl_setopt($ch, CURLOPT_POST, true);
-                                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['subject' => $subject, 'messageBody' => $message]));
-                                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Api-Key: ' . $smoobuApiKey, 'Content-Type: application/json']);
-                                    $emailResponse = curl_exec($ch);
-                                    $emailCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                                    curl_close($ch);
-                                    
-                                    if ($emailCode == 201 || $emailCode == 200) {
+                                    if ($webhookHandler->sendPINToGuest($booking, $fullPin, $apartmentName)) {
                                         echo '<div class="code-detail ok">✓ Email sent</div>';
                                         $stats['email_sent']++;
                                     }
                                     
                                     // Send SMS
-                                    $guestPhone = $booking['phone'] ?? '';
-                                    if ($guestPhone) {
-                                        $guestPhone = str_replace([' ', '(', ')', '-'], '', $guestPhone);
-                                        $smsToken = $config['serwersms']['api_token'] ?? '';
-
-                                        if ($smsToken) {
-                                            $smsUrl = "https://api2.serwersms.pl/messages/send_sms";
-                                            $smsParams = http_build_query([
-                                                'phone'  => $guestPhone,
-                                                'text'   => $message,
-                                                'sender' => 'KOLNA',
-                                                'utf'    => 'true',
-                                            ]);
-
-                                            $ch = curl_init($smsUrl);
-                                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                            curl_setopt($ch, CURLOPT_POST, true);
-                                            curl_setopt($ch, CURLOPT_POSTFIELDS, $smsParams);
-                                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $smsToken, 'Accept: application/json', 'Content-Type: application/x-www-form-urlencoded']);
-                                            $smsResponse = curl_exec($ch);
-                                            $smsCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                                            $smsData = json_decode($smsResponse, true);
-                                            curl_close($ch);
-
-                                            if ($smsCode == 200 && !empty($smsData['success'])) {
-                                                echo '<div class="code-detail ok">✓ SMS sent</div>';
-                                                $stats['sms_sent']++;
-                                            }
-                                        }
+                                    if ($webhookHandler->sendSMSNotification($booking, $fullPin, $apartmentName)) {
+                                        echo '<div class="code-detail ok">✓ SMS sent</div>';
+                                        $stats['sms_sent']++;
                                     }
                                 }
                             }
