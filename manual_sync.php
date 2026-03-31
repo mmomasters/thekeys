@@ -170,7 +170,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             <span class="mode-badge mode-apply">✅ APPLY MODE</span>
             <div class="alert alert-success">
                 <strong>Applying Changes</strong><br>
-                Changes are being applied (Guest notifications sent ONLY for new codes).
+                Changes are being applied (Guest notifications sent for NEW codes and DATE updates).
             </div>
         <?php endif; ?>
 
@@ -382,6 +382,38 @@ $apply = ($_GET['apply'] ?? false) == '1';
                         if ($success) {
                             echo '<div class="booking-detail ok">✓ Updated</div>';
                             $stats['updated']++;
+
+                            // Send notifications if dates changed
+                            if ($existing['start'] != $arrival || $existing['end'] != $departure) {
+                                try {
+                                    // Fetch full booking details for phone/language
+                                    $detailUrl = "https://login.smoobu.com/api/reservations/{$bookingId}";
+                                    $chDet = curl_init($detailUrl);
+                                    curl_setopt($chDet, CURLOPT_RETURNTRANSFER, true);
+                                    curl_setopt($chDet, CURLOPT_HTTPHEADER, ['Api-Key: ' . $smoobuApiKey]);
+                                    $detailResponse = curl_exec($chDet);
+                                    $detailBooking = json_decode($detailResponse, true);
+                                    curl_close($chDet);
+                                    
+                                    if ($detailBooking) {
+                                        $apartmentName = $detailBooking['apartment']['name'] ?? 'your apartment';
+                                        $prefix = $config['digicode_prefixes'][$lockId] ?? '';
+                                        $fullPin = $prefix . $existing['code'];
+                                        
+                                        // SMS
+                                        if ($webhookHandler->sendSMSNotification($detailBooking, $fullPin, $apartmentName)) {
+                                            echo '<div class="booking-detail ok">✓ SMS sent to guest (Date update)</div>';
+                                        }
+                                        
+                                        // Email (via Smoobu)
+                                        if ($webhookHandler->sendPINToGuest($detailBooking, $fullPin, $apartmentName)) {
+                                            echo '<div class="booking-detail ok">✓ Email sent via Smoobu (Date update)</div>';
+                                        }
+                                    }
+                                } catch (Exception $e) {
+                                    echo '<div class="booking-detail error">⚠ Notification failed: ' . htmlspecialchars($e->getMessage()) . '</div>';
+                                }
+                            }
                         } else {
                             echo '<div class="booking-detail error">✗ Failed to update</div>';
                             $stats['errors']++;
@@ -473,7 +505,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             if ($stats['created'] > 0 || $stats['updated'] > 0) {
                 echo '<div class="alert alert-warning">';
                 echo '<strong>Ready to apply changes?</strong><br>';
-                echo 'Click the button below to update existing codes or create missing ones. Guest notifications will ONLY be sent for NEWLY created codes.';
+                echo 'Click the button below to update existing codes or create missing ones. Guest notifications will be sent for NEW codes and DATE updates.';
                 echo '</div>';
                 echo '<a href="?apply=1" class="button button-success">✅ Apply Changes</a>';
                 echo '<a href="?" class="button">🔄 Refresh Preview</a>';
@@ -488,7 +520,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             echo '<div class="alert alert-success">';
             echo '<strong>✅ Sync Complete!</strong><br>';
             if ($stats['created'] > 0 || $stats['updated'] > 0) {
-                echo 'Changes have been applied. Smoobu IDs linked. Guest notifications sent for ' . $stats['created'] . ' new code(s).';
+                echo 'Changes have been applied. Smoobu IDs linked. Guest notifications sent for new codes and date updates.';
             } else {
                 echo 'All bookings were already in sync.';
             }
