@@ -56,7 +56,7 @@ Smoobu POST → webhook.php → SmoobuWebhook → TheKeysAPI (create/update/dele
 
 ### Admin Tools
 
-- **manual_sync.php** — Web UI to recover missed bookings from Smoobu API. Supports dry-run mode.
+- **manual_sync.php** — Web UI to recover missed bookings from Smoobu API. Supports dry-run mode, name-based matching for existing codes (with prefix handling), and links `Smoobu#ID` to manual codes. Sends guest notifications for new codes and date updates.
 - **lock_migration.php** — Lock hardware replacement tool; migrates codes and notifies guests.
 - **pipe.php** — Email logging endpoint for IFTTT triggers.
 

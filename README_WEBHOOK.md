@@ -113,10 +113,12 @@ SmoobuWebhook.php processes event
 - Logs operation to database
 
 **Updated Reservation:**
-- Finds existing code
-- Updates dates/times
+- Finds existing code (by `Smoobu#ID` or Guest Name fallback)
+- Handles "smoobu" prefix in guest names for matching
+- Links `Smoobu#ID` to description if matched by name
+- Updates dates/times if they changed
 - Preserves existing PIN
-- Updates description
+- Dispatches notifications for date changes or new creations
 
 **Cancelled Reservation:**
 - Finds existing code

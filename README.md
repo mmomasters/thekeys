@@ -5,8 +5,10 @@
 ## 🎉 Features
 
 - ✅ **Real-time sync** - Webhooks trigger instant code creation/update/deletion
+- ✅ **Smart Matching** - Matches manual codes by guest name (prefix-aware)
 - ✅ **SMS notifications** - Guest receives PIN via SMS + admin notifications
-- ✅ **Email messages** - Multilingual messages sent to guests (EN/DE/PL)
+- ✅ **Email messages** - Multilingual messages sent to guests (EN/DE/PL/RU/UA)
+- ✅ **Manual Sync Tool** - Recovery tool with dry-run and smart linking
 - ✅ **Database logging** - Complete audit trail of all operations
 - ✅ **Idempotency** - Prevents duplicate processing
 - ✅ **Apartment changes** - Handles booking moves between apartments
@@ -102,6 +104,24 @@ Upload to your web server:
    - URL: `https://your-domain.com/thekeys/webhook.php`
    - Events: Reservation Created, Updated, Cancelled
 4. Save
+
+## Manual Sync & Recovery Tool
+
+The project includes `manual_sync.php`, a web-based tool for recovering missed bookings or performing a bulk sync.
+
+### Key Features:
+- **🔍 Dry Run Mode:** Preview all changes before applying them.
+- **🧠 Smart Name Matching:** Automatically matches manual codes by guest name, even if they have a "smoobu" prefix (e.g., "smoobu Lucas Schmitt" matches "Lucas Schmitt").
+- **🔗 Auto-Linking:** When a name match is found, the tool automatically appends the `Smoobu#ID` to the code's description for future ID-based syncs.
+- **🔔 Selective Notifications:** 
+    - **New Codes:** Guests ALWAYS receive SMS/Email when a new code is created.
+    - **Date Updates:** Guests receive notifications if arrival or departure dates are modified.
+    - **ID Linking Only:** NO notifications are sent if we only link a name-matched code without changing dates.
+
+### Usage:
+1. Access `https://your-domain.com/thekeys/manual_sync.php` (Dry Run).
+2. Review the proposed changes.
+3. Access `manual_sync.php?apply=1` to execute.
 
 ## How It Works
 
