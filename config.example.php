@@ -25,9 +25,20 @@ return [
         'api_key' => 'your_smoobu_api_key'
     ],
     
-    // SerwerSMS API configuration (optional - SMS sent to guest's phone only)
+    // SMS provider to use: 'serwersms' or 'budgetsms'
+    'sms_provider' => 'serwersms',
+
+    // SerwerSMS API configuration (optional - used when sms_provider = 'serwersms')
     'serwersms' => [
         'api_token' => 'your_serwersms_api_token',
+    ],
+
+    // BudgetSMS API configuration (optional - used when sms_provider = 'budgetsms')
+    'budgetsms' => [
+        'username' => 'your_budgetsms_username',
+        'userid'   => 'your_budgetsms_userid',
+        'handle'   => 'your_budgetsms_handle',
+        'sender'   => 'KOLNA',
     ],
     
     // Mapping: Smoobu Apartment ID -> The Keys Lock ID

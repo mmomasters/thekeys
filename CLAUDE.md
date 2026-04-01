@@ -41,7 +41,7 @@ cp config.example.php config.php
 
 ```
 Smoobu POST → webhook.php → SmoobuWebhook → TheKeysAPI (create/update/delete PIN)
-                                          → SerwerSMS API (SMS to guest)
+                                          → SMS provider (SerwerSMS or BudgetSMS)
                                           → Smoobu API (message to guest)
                                           → MySQL (audit log)
 ```
@@ -75,9 +75,11 @@ webhook_logs   -- Raw incoming events (idempotency checks use this)
 sync_history   -- Outcome of each create/update/delete operation
 ```
 
-## SMS Unicode Support
+## SMS Provider Selection
 
-SerwerSMS supports Unicode via the `utf=true` parameter. All languages (`ru`, `ua`, `de`, etc.) send SMS in the guest's native language. No language fallback is needed.
+Set `sms_provider` in `config.php` to `'serwersms'` (default) or `'budgetsms'`. Each provider has its own credentials block in config.
+
+SerwerSMS uses Bearer token auth + `utf=true` for Cyrillic. BudgetSMS uses `username`/`userid`/`handle` query params and auto-detects Unicode.
 
 ## External APIs
 
@@ -86,3 +88,4 @@ SerwerSMS supports Unicode via the `utf=true` parameter. All languages (`ru`, `u
 | The Keys Cloud | JWT (login → token) | Form-encoded POST |
 | Smoobu | `Api-Key` header | JSON |
 | SerwerSMS | Bearer token | Form-encoded POST with `utf=true` |
+| BudgetSMS | `username`+`userid`+`handle` params | GET query string |

@@ -375,12 +375,15 @@ class SmoobuWebhook {
     }
     
     public function sendSMSNotification($booking, $fullPin, $apartmentName, $action = 'new') {
-        $serwersmsConfig = $this->config['serwersms'] ?? [];
-        $apiToken = $serwersmsConfig['api_token'] ?? '';
-        
-        if (empty($apiToken)) {
-            $this->log("SMS notifications disabled (no token)", 'DEBUG');
-            return false;
+        $provider = $this->config['sms_provider'] ?? 'serwersms';
+
+        $apiToken = '';
+        if ($provider === 'serwersms') {
+            $apiToken = $this->config['serwersms']['api_token'] ?? '';
+            if (empty($apiToken)) {
+                $this->log("SMS notifications disabled (no token)", 'DEBUG');
+                return false;
+            }
         }
         
         $bookingId = $booking['id'] ?? '';
@@ -425,47 +428,98 @@ class SmoobuWebhook {
         }
         
         $successCount = 0;
-        
+
         foreach ($recipients as $recipient) {
-            $url = "https://api2.serwersms.pl/messages/send_sms";
-
-            $smsParams = [
-                'phone'  => $recipient,
-                'text'   => $message,
-                'sender' => 'KOLNA',
-            ];
-            if (in_array($language, ['ru', 'ua'])) {
-                $smsParams['utf'] = 'true';
-            }
-            $params = http_build_query($smsParams);
-
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Bearer ' . $apiToken,
-                'Accept: application/json',
-                'Content-Type: application/x-www-form-urlencoded'
-            ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $responseData = json_decode($response, true);
-            curl_close($ch);
-
-            if ($httpCode === 200 && !empty($responseData['success'])) {
-                $this->log("Sent SMS to {$recipient} for booking {$bookingId}");
-                $successCount++;
+            if ($provider === 'budgetsms') {
+                $sent = $this->sendViaBudgetSMS($recipient, $message, $bookingId);
             } else {
-                $errorMsg = $responseData['error']['description'] ?? ($responseData['message'] ?? 'Unknown error');
-                $this->log("Failed to send SMS to {$recipient}: HTTP {$httpCode} - {$errorMsg} - {$response}", 'WARNING');
+                $sent = $this->sendViaSerwersms($recipient, $message, $language, $apiToken, $bookingId);
             }
+            if ($sent) $successCount++;
         }
-        
+
         return $successCount > 0;
     }
-    
+
+    private function sendViaSerwersms($recipient, $message, $language, $apiToken, $bookingId) {
+        $url = "https://api2.serwersms.pl/messages/send_sms";
+
+        $smsParams = [
+            'phone'  => $recipient,
+            'text'   => $message,
+            'sender' => 'KOLNA',
+        ];
+        if (in_array($language, ['ru', 'ua'])) {
+            $smsParams['utf'] = 'true';
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($smsParams));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $apiToken,
+            'Accept: application/json',
+            'Content-Type: application/x-www-form-urlencoded'
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $responseData = json_decode($response, true);
+        curl_close($ch);
+
+        if ($httpCode === 200 && !empty($responseData['success'])) {
+            $this->log("Sent SMS to {$recipient} for booking {$bookingId}");
+            return true;
+        } else {
+            $errorMsg = $responseData['error']['description'] ?? ($responseData['message'] ?? 'Unknown error');
+            $this->log("Failed to send SMS to {$recipient}: HTTP {$httpCode} - {$errorMsg} - {$response}", 'WARNING');
+            return false;
+        }
+    }
+
+    private function sendViaBudgetSMS($recipient, $message, $bookingId) {
+        $cfg = $this->config['budgetsms'] ?? [];
+        $username = $cfg['username'] ?? '';
+        $userid   = $cfg['userid']   ?? '';
+        $handle   = $cfg['handle']   ?? '';
+        $sender   = $cfg['sender']   ?? 'KOLNA';
+
+        if (empty($username) || empty($userid) || empty($handle)) {
+            $this->log("BudgetSMS notifications disabled (missing credentials)", 'DEBUG');
+            return false;
+        }
+
+        // BudgetSMS requires E.164 digits only (no leading + or 00)
+        $to = ltrim($recipient, '+');
+        if (strncmp($to, '00', 2) === 0) {
+            $to = substr($to, 2);
+        }
+
+        $url = 'https://api.budgetsms.net/sendsms/?' . http_build_query([
+            'username' => $username,
+            'userid'   => $userid,
+            'handle'   => $handle,
+            'msg'      => $message,
+            'from'     => $sender,
+            'to'       => $to,
+        ]);
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && strncmp($response, 'OK', 2) === 0) {
+            $this->log("Sent SMS to {$recipient} for booking {$bookingId}");
+            return true;
+        } else {
+            $this->log("Failed to send SMS to {$recipient}: HTTP {$httpCode} - {$response}", 'WARNING');
+            return false;
+        }
+    }
+
     public function sendPINToGuest($booking, $fullPin, $apartmentName) {
         $bookingId = $booking['id'];
         $guestName = $booking['guest-name'] ?? 'Guest';

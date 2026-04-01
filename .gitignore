@@ -4,6 +4,7 @@ config.php
 
 # Test scripts (contain API tokens)
 test_sms*.py
+test_budgetsms.php
 
 # Python
 __pycache__/
