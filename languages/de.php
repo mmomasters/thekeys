@@ -16,6 +16,8 @@ Ihr Apartmentcode funktioniert NUR zwischen Check-in- und Check-out-Datum und -U
 Ihr Check-in: {arrival} ab 15.00 Uhr.
 Ihr Check-out: {departure} bis 12.00 Uhr.
 
+PARKING : Viele Parkplätze befinden sich auf der Straße in der Nähe der Kolna Apartments. Das Parken ist von 17:00 bis 08:00 Uhr sowie an Wochenenden und Feiertagen kostenlos, Preisliste: https://spp.szczecin.pl/informacja/SPP-Preisliste
+
 Bei Problemen können Sie uns gerne unter +48 91 819 99 65 anrufen.
 
 Wir wünschen Ihnen einen sehr angenehmen Aufenthalt,
