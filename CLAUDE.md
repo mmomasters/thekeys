@@ -51,7 +51,7 @@ ElevenLabs POST → pushover.php → Pushover API (conversation summary)
 ### Core Files
 
 - **webhook.php** — HTTP entry point for Smoobu. Validates JSON payload, optionally checks IP whitelist and HMAC signature, delegates to `SmoobuWebhook`.
-- **pushover.php** — HTTP entry point for ElevenLabs. Validates HMAC signature and forwards AI agent conversation summaries to Pushover.
+- **pushover.php** — Webhook for ElevenLabs. Validates HMAC, extracts caller ID and summary, then sends Pushover notification with agent name and Chrome deep link.
 - **SmoobuWebhook.php** — Main business logic for bookings. Routes events (`reservation.new`, `reservation.updated`, `reservation.cancelled`), checks idempotency (5-minute window), manages PIN lifecycle, dispatches notifications.
 - **TheKeysAPI.php** — API client for The Keys Cloud. JWT auth, CRUD on lock codes via form-encoded POST requests. PIN stored in code description as `Smoobu#{bookingId}`.
 - **config.php** — Runtime config (gitignored; copy from `config.example.php`).

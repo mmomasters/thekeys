@@ -106,6 +106,33 @@ Upload to your web server:
    - Events: Reservation Created, Updated, Cancelled
 4. Save
 
+## ElevenLabs AI Agent Integration
+
+The project includes `pushover.php`, a webhook endpoint to receive conversation summaries from ElevenLabs AI Agents and forward them as Pushover notifications.
+
+### Features:
+- 🔐 **HMAC Verification:** Validates incoming webhooks using ElevenLabs shared secret.
+- 📱 **Pushover Notifications:** Sends formatted summaries directly to your phone.
+- 📞 **Caller ID:** Displays the external phone number of the caller.
+- 🔗 **Deep Linking:** Includes a button to open the agent's analysis tab directly in Google Chrome.
+
+### Setup:
+1. **Configure ElevenLabs:**
+   - Go to your Agent's settings.
+   - Set the **Post-call Webhook URL** to `https://your-domain.com/thekeys/pushover.php`.
+   - Copy the **Webhook Secret**.
+
+2. **Configure `config.php`:**
+   ```php
+   'elevenlabs' => [
+       'webhook_secret' => 'your_elevenlabs_secret'
+   ],
+   'pushover' => [
+       'user_key' => 'your_pushover_user_key',
+       'api_token' => 'your_pushover_app_token'
+   ]
+   ```
+
 ## Manual Sync & Recovery Tool
 
 The project includes `manual_sync.php`, a web-based tool for recovering missed bookings or performing a bulk sync.
