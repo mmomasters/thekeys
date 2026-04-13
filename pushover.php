@@ -57,8 +57,10 @@ if (!empty($config['elevenlabs']['webhook_secret'])) {
     foreach ($parts as $part) {
         $kv = explode('=', $part);
         if (count($kv) === 2) {
-            if (trim($kv[0]) === 't') $timestamp = trim($kv[1]);
-            if (trim($kv[0]) === 'v1') $signature = trim($kv[1]);
+            $key = trim($kv[0]);
+            $val = trim($kv[1]);
+            if ($key === 't') $timestamp = $val;
+            if ($key === 'v1' || $key === 'v0') $signature = $val;
         }
     }
     
