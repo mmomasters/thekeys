@@ -286,7 +286,7 @@ thekeys/
 ├── webhook.php            # Main webhook endpoint
 ├── SmoobuWebhook.php     # Event handler
 ├── TheKeysAPI.php        # The Keys API client
-├── pushover.php          # ElevenLabs to Pushover webhook
+├── pushover.php          # ElevenLabs (HMAC) to Pushover webhook
 ├── config.php            # Configuration (gitignored)
 ├── config.example.php    # Configuration template
 ├── README.md            # This file
