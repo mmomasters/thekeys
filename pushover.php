@@ -18,10 +18,37 @@ $config = require 'config.php';
 $rawPayload = file_get_contents('php://input');
 $payload = json_decode($rawPayload, true);
 
+// Log raw request for debugging (moved up for earlier logging)
+if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+    $logFile = $config['logging']['file'];
+    $logDir = dirname($logFile);
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0755, true);
+    }
+    
+    $timestamp = date('Y-m-d H:i:s');
+    $allHeaders = getallheaders();
+    $logEntry = "\n[{$timestamp}] ELEVENLABS WEBHOOK REQUEST\n";
+    $logEntry .= "Method: " . $_SERVER['REQUEST_METHOD'] . "\n";
+    $logEntry .= "Headers: " . json_encode($allHeaders) . "\n";
+    $logEntry .= "Payload: " . $rawPayload . "\n";
+    
+    file_put_contents($logFile, $logEntry, FILE_APPEND);
+}
+
 // Validate ElevenLabs signature if configured
 if (!empty($config['elevenlabs']['webhook_secret'])) {
-    $signatureHeader = $_SERVER['HTTP_ELEVENLABS_SIGNATURE'] ?? '';
+    // Check both standard and possible Variations of the signature header
+    $signatureHeader = $_SERVER['HTTP_X_ELEVENLABS_SIGNATURE'] 
+                    ?? $_SERVER['HTTP_ELEVENLABS_SIGNATURE'] 
+                    ?? $allHeaders['X-ElevenLabs-Signature'] 
+                    ?? $allHeaders['ElevenLabs-Signature'] 
+                    ?? '';
     
+    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+        file_put_contents($logFile, "Signature Header Found: " . $signatureHeader . "\n", FILE_APPEND);
+    }
+
     // Parse signature header (format: t=timestamp,v1=signature)
     $parts = explode(',', $signatureHeader);
     $timestamp = '';
@@ -36,6 +63,9 @@ if (!empty($config['elevenlabs']['webhook_secret'])) {
     }
     
     if (!$timestamp || !$signature) {
+        if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+            file_put_contents($logFile, "ERROR: Missing signature components (t or v1)\n", FILE_APPEND);
+        }
         http_response_code(401);
         echo json_encode(['error' => 'Missing signature components']);
         exit;
@@ -46,27 +76,22 @@ if (!empty($config['elevenlabs']['webhook_secret'])) {
     $expectedSignature = hash_hmac('sha256', $signedPayload, $config['elevenlabs']['webhook_secret']);
     
     if (!hash_equals($expectedSignature, $signature)) {
+        if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+            file_put_contents($logFile, "ERROR: Signature mismatch. Expected: $expectedSignature, Received: $signature\n", FILE_APPEND);
+        }
         http_response_code(401);
         echo json_encode(['error' => 'Invalid signature']);
         exit;
     }
+
+    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+        file_put_contents($logFile, "SUCCESS: Signature validated\n", FILE_APPEND);
+    }
 }
 
-// Log raw request for debugging
+// Rest of the logic...
 if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-    $logFile = $config['logging']['file'];
-    $logDir = dirname($logFile);
-    if (!is_dir($logDir)) {
-        mkdir($logDir, 0755, true);
-    }
-    
-    $timestamp = date('Y-m-d H:i:s');
-    $logEntry = "\n[{$timestamp}] ELEVENLABS WEBHOOK REQUEST\n";
-    $logEntry .= "Method: " . $_SERVER['REQUEST_METHOD'] . "\n";
-    $logEntry .= "Payload: " . $rawPayload . "\n";
-    $logEntry .= str_repeat('-', 80) . "\n";
-    
-    file_put_contents($logFile, $logEntry, FILE_APPEND);
+    file_put_contents($config['logging']['file'], str_repeat('-', 80) . "\n", FILE_APPEND);
 }
 
 // Validate request method
