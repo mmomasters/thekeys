@@ -291,7 +291,6 @@ thekeys/
 ├── config.example.php    # Configuration template
 ├── README.md            # This file
 ├── README_WEBHOOK.md    # Webhook documentation
-├── SECURITY.md          # Security guidelines
 ├── .gitignore           # Git ignore rules
 └── logs/
     └── webhook.log      # Webhook logs
@@ -304,7 +303,6 @@ thekeys/
 - Idempotency prevents duplicate processing
 - Optional IP whitelist and webhook secret validation
 
-See [SECURITY.md](SECURITY.md) for details.
 
 ## Troubleshooting
 
