@@ -74,7 +74,7 @@ if (!empty($config['elevenlabs']['webhook_secret'])) {
     }
     
     // Construct signed payload (timestamp + payload)
-    $signedPayload = $timestamp . $rawPayload;
+    $signedPayload = $timestamp . '.' . $rawPayload;
     $expectedSignature = hash_hmac('sha256', $signedPayload, $config['elevenlabs']['webhook_secret']);
     
     if (!hash_equals($expectedSignature, $signature)) {
