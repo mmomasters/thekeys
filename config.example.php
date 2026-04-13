@@ -82,5 +82,11 @@ return [
     'logging' => [
         'enabled' => true,
         'file' => __DIR__ . '/logs/webhook.log'
+    ],
+    
+    // Pushover configuration
+    'pushover' => [
+        'user_key' => 'your_pushover_user_key',
+        'api_token' => 'your_pushover_api_token',
     ]
 ];

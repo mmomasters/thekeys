@@ -9,6 +9,7 @@
 - ✅ **SMS notifications** - Guest receives PIN via SMS + admin notifications
 - ✅ **Email messages** - Multilingual messages sent to guests (EN/DE/PL/RU/UA)
 - ✅ **Manual Sync Tool** - Recovery tool with dry-run and smart linking
+- ✅ **ElevenLabs AI Agent Integration** - Forwards conversation summaries to Pushover
 - ✅ **Database logging** - Complete audit trail of all operations
 - ✅ **Idempotency** - Prevents duplicate processing
 - ✅ **Apartment changes** - Handles booking moves between apartments
@@ -285,6 +286,7 @@ thekeys/
 ├── webhook.php            # Main webhook endpoint
 ├── SmoobuWebhook.php     # Event handler
 ├── TheKeysAPI.php        # The Keys API client
+├── pushover.php          # ElevenLabs to Pushover webhook
 ├── config.php            # Configuration (gitignored)
 ├── config.example.php    # Configuration template
 ├── README.md            # This file
