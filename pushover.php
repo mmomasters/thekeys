@@ -91,11 +91,6 @@ if (!empty($config['elevenlabs']['webhook_secret'])) {
     }
 }
 
-// Rest of the logic...
-if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-    file_put_contents($config['logging']['file'], str_repeat('-', 80) . "\n", FILE_APPEND);
-}
-
 // Validate request method
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -113,8 +108,16 @@ if (!$payload) {
 // Extract event type
 $type = $payload['type'] ?? '';
 
+if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+    file_put_contents($logFile, "Event Type: " . $type . "\n", FILE_APPEND);
+}
+
 // We only care about post_call_transcription which contains the summary
 if ($type !== 'post_call_transcription') {
+    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+        file_put_contents($logFile, "RESULT: Ignored event type ($type)\n", FILE_APPEND);
+        file_put_contents($logFile, str_repeat('-', 80) . "\n", FILE_APPEND);
+    }
     http_response_code(200);
     echo json_encode(['success' => true, 'result' => 'ignored_event_type', 'type' => $type]);
     exit;
@@ -125,8 +128,16 @@ $summary = $payload['data']['analysis']['summary'] ?? '';
 $conversationId = $payload['data']['conversation_id'] ?? 'unknown';
 $agentId = $payload['data']['agent_id'] ?? 'unknown';
 
+if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+    file_put_contents($logFile, "Conversation ID: " . $conversationId . "\n", FILE_APPEND);
+    file_put_contents($logFile, "Summary Length: " . strlen($summary) . "\n", FILE_APPEND);
+}
+
 if (empty($summary)) {
-    // If summary is not in the analysis, maybe it's a different event structure or no summary was generated
+    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+        file_put_contents($logFile, "RESULT: No summary available\n", FILE_APPEND);
+        file_put_contents($logFile, str_repeat('-', 80) . "\n", FILE_APPEND);
+    }
     http_response_code(200);
     echo json_encode(['success' => true, 'result' => 'no_summary_available', 'conversation_id' => $conversationId]);
     exit;
@@ -169,14 +180,14 @@ curl_close($ch);
 // Log Pushover result
 if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
     $timestamp = date('Y-m-d H:i:s');
-    $logEntry = "\n[{$timestamp}] PUSHOVER NOTIFICATION SENT\n";
+    $logEntry = "\n[{$timestamp}] PUSHOVER NOTIFICATION RESULT\n";
     $logEntry .= "Conversation ID: {$conversationId}\n";
     $logEntry .= "HTTP Code: {$httpCode}\n";
     $logEntry .= "Response: {$response}\n";
     if ($error) {
         $logEntry .= "cURL Error: {$error}\n";
     }
-    $logEntry .= str_repeat('-', 80) . "\n";
+    $logEntry .= str_repeat('=', 80) . "\n";
     file_put_contents($logFile, $logEntry, FILE_APPEND);
 }
 
