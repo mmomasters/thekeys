@@ -18,8 +18,12 @@ $config = require 'config.php';
 $rawPayload = file_get_contents('php://input');
 $payload = json_decode($rawPayload, true);
 
-// Log raw request for debugging (moved up for earlier logging)
-if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
+// Get all headers once
+$allHeaders = getallheaders();
+
+// Log raw request if debugging is enabled in config
+$debugMode = isset($config['logging']['enabled']) && $config['logging']['enabled'];
+if ($debugMode) {
     $logFile = $config['logging']['file'];
     $logDir = dirname($logFile);
     if (!is_dir($logDir)) {
@@ -27,29 +31,22 @@ if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
     }
     
     $timestamp = date('Y-m-d H:i:s');
-    $allHeaders = getallheaders();
     $logEntry = "\n[{$timestamp}] ELEVENLABS WEBHOOK REQUEST\n";
     $logEntry .= "Method: " . $_SERVER['REQUEST_METHOD'] . "\n";
     $logEntry .= "Headers: " . json_encode($allHeaders) . "\n";
     $logEntry .= "Payload: " . $rawPayload . "\n";
-    
     file_put_contents($logFile, $logEntry, FILE_APPEND);
 }
 
 // Validate ElevenLabs signature if configured
 if (!empty($config['elevenlabs']['webhook_secret'])) {
-    // Check both standard and possible Variations of the signature header
     $signatureHeader = $_SERVER['HTTP_X_ELEVENLABS_SIGNATURE'] 
                     ?? $_SERVER['HTTP_ELEVENLABS_SIGNATURE'] 
                     ?? $allHeaders['X-ElevenLabs-Signature'] 
                     ?? $allHeaders['ElevenLabs-Signature'] 
                     ?? '';
     
-    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-        file_put_contents($logFile, "Signature Header Found: " . $signatureHeader . "\n", FILE_APPEND);
-    }
-
-    // Parse signature header (format: t=timestamp,v1=signature)
+    // Parse signature header (format: t=timestamp,v0=signature)
     $parts = explode(',', $signatureHeader);
     $timestamp = '';
     $signature = '';
@@ -65,93 +62,62 @@ if (!empty($config['elevenlabs']['webhook_secret'])) {
     }
     
     if (!$timestamp || !$signature) {
-        if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-            file_put_contents($logFile, "ERROR: Missing signature components (t or v1)\n", FILE_APPEND);
-        }
+        if ($debugMode) file_put_contents($logFile, "ERROR: Missing signature components\n", FILE_APPEND);
         http_response_code(401);
         echo json_encode(['error' => 'Missing signature components']);
         exit;
     }
     
-    // Construct signed payload (timestamp + payload)
+    // Construct signed payload (timestamp.payload)
     $signedPayload = $timestamp . '.' . $rawPayload;
     $expectedSignature = hash_hmac('sha256', $signedPayload, $config['elevenlabs']['webhook_secret']);
     
     if (!hash_equals($expectedSignature, $signature)) {
-        if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-            file_put_contents($logFile, "ERROR: Signature mismatch. Expected: $expectedSignature, Received: $signature\n", FILE_APPEND);
-        }
+        if ($debugMode) file_put_contents($logFile, "ERROR: Signature mismatch\n", FILE_APPEND);
         http_response_code(401);
         echo json_encode(['error' => 'Invalid signature']);
         exit;
     }
-
-    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-        file_put_contents($logFile, "SUCCESS: Signature validated\n", FILE_APPEND);
-    }
 }
 
-// Validate request method
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
-}
-
-// Validate payload
-if (!$payload) {
+// Validate request method and payload
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$payload) {
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON payload']);
+    echo json_encode(['error' => 'Invalid request']);
     exit;
 }
 
 // Extract event type
 $type = $payload['type'] ?? '';
 
-if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-    file_put_contents($logFile, "Event Type: " . $type . "\n", FILE_APPEND);
-}
-
-// We only care about post_call_transcription which contains the summary
+// We only care about post_call_transcription
 if ($type !== 'post_call_transcription') {
-    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-        file_put_contents($logFile, "RESULT: Ignored event type ($type)\n", FILE_APPEND);
-        file_put_contents($logFile, str_repeat('-', 80) . "\n", FILE_APPEND);
-    }
     http_response_code(200);
-    echo json_encode(['success' => true, 'result' => 'ignored_event_type', 'type' => $type]);
+    echo json_encode(['success' => true, 'result' => 'ignored']);
     exit;
 }
 
-// Extract summary from data.analysis.summary or data.analysis.transcript_summary
-$summary = $payload['data']['analysis']['transcript_summary'] 
-        ?? $payload['data']['analysis']['summary'] 
-        ?? '';
+// Extract data
+$analysis = $payload['data']['analysis'] ?? [];
+$summary = $analysis['transcript_summary'] ?? $analysis['summary'] ?? '';
 $conversationId = $payload['data']['conversation_id'] ?? 'unknown';
 $agentId = $payload['data']['agent_id'] ?? 'unknown';
 
-if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-    file_put_contents($logFile, "Conversation ID: " . $conversationId . "\n", FILE_APPEND);
-    file_put_contents($logFile, "Summary Length: " . strlen($summary) . "\n", FILE_APPEND);
-    if (empty($summary)) {
-        file_put_contents($logFile, "Full Analysis Object: " . json_encode($payload['data']['analysis'] ?? []) . "\n", FILE_APPEND);
-    }
-}
+// Extract caller ID (phone number)
+$callerId = $payload['data']['metadata']['phone_call']['external_number'] 
+         ?? $payload['data']['conversation_initiation_client_data']['dynamic_variables']['system__caller_id']
+         ?? 'Unknown';
 
 if (empty($summary)) {
-    if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-        file_put_contents($logFile, "RESULT: No summary available\n", FILE_APPEND);
-        file_put_contents($logFile, str_repeat('-', 80) . "\n", FILE_APPEND);
-    }
     http_response_code(200);
-    echo json_encode(['success' => true, 'result' => 'no_summary_available', 'conversation_id' => $conversationId]);
+    echo json_encode(['success' => true, 'result' => 'no_summary']);
     exit;
 }
 
 // Prepare Pushover notification
 if (!isset($config['pushover'])) {
     http_response_code(500);
-    echo json_encode(['error' => 'Pushover configuration missing']);
+    echo json_encode(['error' => 'Pushover config missing']);
     exit;
 }
 
@@ -159,16 +125,16 @@ $pushoverConfig = $config['pushover'];
 $pushoverUrl = 'https://api.pushover.net/1/messages.json';
 
 // Build the message
-$message = "Conversation Summary:\n" . $summary;
-$message .= "\n\nID: " . $conversationId;
+$message = "Caller: " . $callerId . "\n\n";
+$message .= "Summary:\n" . $summary;
 
 $postData = [
     'token'   => $pushoverConfig['api_token'],
     'user'    => $pushoverConfig['user_key'],
     'message' => $message,
     'title'   => 'ElevenLabs AI Agent',
-    'url'     => "https://elevenlabs.io/app/conversational-ai/{$agentId}/conversations/{$conversationId}",
-    'url_title' => 'View Conversation'
+    'url'     => "googlechrome://elevenlabs.io/app/conversational-ai/{$agentId}/conversations/{$conversationId}",
+    'url_title' => 'Open in Chrome'
 ];
 
 // Send to Pushover via cURL
@@ -179,27 +145,13 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
 curl_close($ch);
 
-// Log Pushover result
-if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
-    $timestamp = date('Y-m-d H:i:s');
-    $logEntry = "\n[{$timestamp}] PUSHOVER NOTIFICATION RESULT\n";
-    $logEntry .= "Conversation ID: {$conversationId}\n";
-    $logEntry .= "HTTP Code: {$httpCode}\n";
-    $logEntry .= "Response: {$response}\n";
-    if ($error) {
-        $logEntry .= "cURL Error: {$error}\n";
-    }
-    $logEntry .= str_repeat('=', 80) . "\n";
-    file_put_contents($logFile, $logEntry, FILE_APPEND);
+if ($debugMode) {
+    file_put_contents($logFile, "Pushover Response Code: $httpCode\n", FILE_APPEND);
+    file_put_contents($logFile, str_repeat('=', 80) . "\n", FILE_APPEND);
 }
 
 // Return success to ElevenLabs
 http_response_code(200);
-echo json_encode([
-    'success' => true, 
-    'pushover_status' => $httpCode,
-    'conversation_id' => $conversationId
-]);
+echo json_encode(['success' => true]);
