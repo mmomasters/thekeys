@@ -84,6 +84,11 @@ return [
         'file' => __DIR__ . '/logs/webhook.log'
     ],
     
+    // ElevenLabs configuration
+    'elevenlabs' => [
+        'webhook_secret' => 'your_elevenlabs_webhook_secret',
+    ],
+    
     // Pushover configuration
     'pushover' => [
         'user_key' => 'your_pushover_user_key',

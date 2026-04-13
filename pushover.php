@@ -18,6 +18,40 @@ $config = require 'config.php';
 $rawPayload = file_get_contents('php://input');
 $payload = json_decode($rawPayload, true);
 
+// Validate ElevenLabs signature if configured
+if (!empty($config['elevenlabs']['webhook_secret'])) {
+    $signatureHeader = $_SERVER['HTTP_ELEVENLABS_SIGNATURE'] ?? '';
+    
+    // Parse signature header (format: t=timestamp,v1=signature)
+    $parts = explode(',', $signatureHeader);
+    $timestamp = '';
+    $signature = '';
+    
+    foreach ($parts as $part) {
+        $kv = explode('=', $part);
+        if (count($kv) === 2) {
+            if (trim($kv[0]) === 't') $timestamp = trim($kv[1]);
+            if (trim($kv[0]) === 'v1') $signature = trim($kv[1]);
+        }
+    }
+    
+    if (!$timestamp || !$signature) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Missing signature components']);
+        exit;
+    }
+    
+    // Construct signed payload (timestamp + payload)
+    $signedPayload = $timestamp . $rawPayload;
+    $expectedSignature = hash_hmac('sha256', $signedPayload, $config['elevenlabs']['webhook_secret']);
+    
+    if (!hash_equals($expectedSignature, $signature)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid signature']);
+        exit;
+    }
+}
+
 // Log raw request for debugging
 if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
     $logFile = $config['logging']['file'];
