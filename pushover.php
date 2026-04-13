@@ -123,14 +123,19 @@ if ($type !== 'post_call_transcription') {
     exit;
 }
 
-// Extract summary from data.analysis.summary
-$summary = $payload['data']['analysis']['summary'] ?? '';
+// Extract summary from data.analysis.summary or data.analysis.transcript_summary
+$summary = $payload['data']['analysis']['transcript_summary'] 
+        ?? $payload['data']['analysis']['summary'] 
+        ?? '';
 $conversationId = $payload['data']['conversation_id'] ?? 'unknown';
 $agentId = $payload['data']['agent_id'] ?? 'unknown';
 
 if (isset($config['logging']['enabled']) && $config['logging']['enabled']) {
     file_put_contents($logFile, "Conversation ID: " . $conversationId . "\n", FILE_APPEND);
     file_put_contents($logFile, "Summary Length: " . strlen($summary) . "\n", FILE_APPEND);
+    if (empty($summary)) {
+        file_put_contents($logFile, "Full Analysis Object: " . json_encode($payload['data']['analysis'] ?? []) . "\n", FILE_APPEND);
+    }
 }
 
 if (empty($summary)) {
