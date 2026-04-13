@@ -102,6 +102,7 @@ $analysis = $payload['data']['analysis'] ?? [];
 $summary = $analysis['transcript_summary'] ?? $analysis['summary'] ?? '';
 $conversationId = $payload['data']['conversation_id'] ?? 'unknown';
 $agentId = $payload['data']['agent_id'] ?? 'unknown';
+$agentName = $payload['data']['agent_name'] ?? 'ElevenLabs AI Agent';
 
 // Extract caller ID (phone number)
 $callerId = $payload['data']['metadata']['phone_call']['external_number'] 
@@ -132,8 +133,8 @@ $postData = [
     'token'   => $pushoverConfig['api_token'],
     'user'    => $pushoverConfig['user_key'],
     'message' => $message,
-    'title'   => 'ElevenLabs AI Agent',
-    'url'     => "googlechrome://elevenlabs.io/app/conversational-ai/{$agentId}/conversations/{$conversationId}",
+    'title'   => $agentName,
+    'url'     => "googlechrome://elevenlabs.io/app/agents/agents/{$agentId}?tab=analysis",
     'url_title' => 'Open in Chrome'
 ];
 
