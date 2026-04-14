@@ -1,25 +1,38 @@
-# The Keys Cloud - Smoobu Integration
+# The Keys Cloud - Smoobu Integration Webhook System
 
-**Real-time PHP Webhook System** - Automatic keypad code management via Smoobu webhooks!
+Real-time PHP Webhook System - Automatic keypad code management via Smoobu webhooks! 
+Provides integration between Smoobu (rental booking platform) and The Keys Cloud (smart lock management). When guests book via Smoobu, the system automatically generates PIN codes for keypad locks, sends SMS/email notifications, and manages code lifecycle (create on booking, update on change, delete on cancellation).
 
 ## 🎉 Features
 
-- ✅ **Real-time sync** - Webhooks trigger instant code creation/update/deletion
+- ✅ **Real-time sync** - No polling, instant updates via webhooks
+- ✅ **Event-driven** - Only processes what changes (Reservation Created, Updated, Cancelled)
+- ✅ **Idempotent** - Prevents duplicate processing (5-minute window)
 - ✅ **Smart Matching** - Matches manual codes by guest name (prefix-aware)
-- ✅ **SMS notifications** - Guest receives PIN via SMS + admin notifications
+- ✅ **SMS notifications** - Guest receives PIN via SMS + admin notifications (SerwerSMS or BudgetSMS)
 - ✅ **Email messages** - Multilingual messages sent to guests (EN/DE/PL/RU/UA)
-- ✅ **Manual Sync Tool** - Recovery tool with dry-run and smart linking
 - ✅ **ElevenLabs AI Agent Integration** - Forwards conversation summaries to Pushover
+- ✅ **Manual Sync Tool** - Recovery tool with dry-run and smart linking
 - ✅ **Database logging** - Complete audit trail of all operations
-- ✅ **Idempotency** - Prevents duplicate processing
+- ✅ **PIN preservation** - Never changes existing codes
 - ✅ **Apartment changes** - Handles booking moves between apartments
-- ✅ **Auto cleanup** - Cancelled bookings removed immediately
+- ✅ **Auto cleanup** - Cancelled bookings removed immediately after checkout
 
-## Quick Start
+## 📋 Requirements
+
+- PHP 7.4+ with PDO, cURL, JSON extensions
+- MySQL 5.7+ database
+- Public HTTPS URL for webhook
+- Smoobu API key
+- The Keys API credentials
+- SMS Provider credentials (SerwerSMS or BudgetSMS)
+
+## 🚀 Quick Start & Installation
 
 ### 1. Database Setup
 
-Create MySQL database and tables:
+Database and tables:
+- Database: `thekeys`
 
 ```sql
 CREATE DATABASE thekeys;
@@ -44,15 +57,15 @@ CREATE TABLE sync_history (
 );
 ```
 
-### 2. Configure
+### 2. Configuration
 
-Copy the example config and fill in your details:
+Copy `config.example.php` to `config.php` and fill in your credentials:
 
 ```bash
 cp config.example.php config.php
 ```
 
-Edit `config.php` with your credentials:
+Edit `config.php` with your real credentials:
 
 ```php
 return [
@@ -70,6 +83,7 @@ return [
     'smoobu' => [
         'api_key' => 'your_smoobu_api_key'
     ],
+    // SMS Provider Selection (default: 'serwersms' or 'budgetsms')
     'serwersms' => [
         'api_token' => 'your_serwersms_api_token',
     ],
@@ -89,39 +103,92 @@ return [
 ];
 ```
 
-### 3. Upload Files
+### 3. Upload Files & Set Permissions
 
-Upload to your web server:
+Upload these files to your server at `public_html/thekeys/`:
 - `webhook.php` - Main webhook endpoint
 - `SmoobuWebhook.php` - Event handler
 - `TheKeysAPI.php` - API client
 - `config.php` - Your configuration
+- `pushover.php` - ElevenLabs (HMAC) to Pushover webhook
+- `manual_sync.php`
+- `lock_migration.php`
+- `pipe.php`
+- `languages/`
+
+Set permissions:
+```bash
+chmod 755 webhook.php
+chmod 644 config.php
+chmod 755 logs/
+```
 
 ### 4. Configure Smoobu Webhook
 
-1. Login to Smoobu
-2. Go to Settings → API & Webhooks
-3. Add new webhook:
+1. Login to Smoobu → Settings → API & Webhooks
+2. Add new webhook:
    - URL: `https://your-domain.com/thekeys/webhook.php`
-   - Events: Reservation Created, Updated, Cancelled
-4. Save
+   - Events: Select Reservation Created, Updated, Cancelled
+3. Save webhook
 
-## ElevenLabs AI Agent Integration
+## 🏛 Architecture & Project Structure
 
-The project includes `pushover.php`, a webhook endpoint to receive conversation summaries from ElevenLabs AI Agents and forward them as Pushover notifications.
+No build system. Plain PHP project deployed by uploading files to a web server.
 
-### Features:
-- 🔐 **HMAC Verification:** Validates incoming webhooks using ElevenLabs shared secret.
-- 📱 **Pushover Notifications:** Sends formatted summaries directly to your phone.
-- 📞 **Caller ID:** Displays the external phone number of the caller.
-- 🔗 **Deep Linking:** Includes a button to open the agent's analysis tab directly in Google Chrome.
+### Request Flow
+
+```
+Smoobu POST → webhook.php → SmoobuWebhook → TheKeysAPI (create/update/delete PIN)
+                                          → SMS provider (SerwerSMS or BudgetSMS)
+                                          → Smoobu API (message to guest)
+                                          → MySQL (audit log)
+
+ElevenLabs POST → pushover.php → Pushover API (conversation summary)
+```
+
+### Core Files
+
+- **`webhook.php`** — HTTP entry point for Smoobu. Validates JSON payload, optionally checks IP whitelist and HMAC signature, delegates to `SmoobuWebhook`.
+- **`pushover.php`** — Webhook for ElevenLabs. Validates HMAC, extracts caller ID and summary, then sends Pushover notification with agent name and Chrome deep link.
+- **`SmoobuWebhook.php`** — Main business logic for bookings. Routes events (`reservation.new`, `reservation.updated`, `reservation.cancelled`), checks idempotency (5-minute window), manages PIN lifecycle, dispatches notifications.
+- **`TheKeysAPI.php`** — API client for The Keys Cloud. JWT auth, CRUD on lock codes via form-encoded POST requests. PIN stored in code description as `Smoobu#{bookingId}`.
+- **`config.php`** — Runtime config (gitignored; copy from `config.example.php`).
+- **`languages/{en,de,pl,ru,ua}.php`** — Localized message templates.
+
+### Admin Tools
+
+- **`manual_sync.php`** — Web UI to recover missed bookings from Smoobu API. Supports dry-run mode, name-based matching for existing codes (with prefix handling), and links `Smoobu#ID` to manual codes. Sends guest notifications for new codes and date updates.
+- **`lock_migration.php`** — Lock hardware replacement tool; migrates codes and notifies guests.
+- **`pipe.php`** — Email logging endpoint for IFTTT triggers.
+
+## 🔧 How It Works
+
+### Event Handling Flow
+
+```
+New Booking in Smoobu → Webhook to your URL → webhook.php → SmoobuWebhook.php
+```
+
+1. Log to database
+2. Check idempotency (prevent duplicates)
+3. Process based on event type:
+   - **`reservation.new`**: Generates random 4-digit PIN (prepends prefix), creates code in The Keys, sends multilingual message and SMS to guest, logs operation.
+   - **`reservation.updated`**: Finds existing code (by `Smoobu#ID` or Guest Name fallback), updates dates/times if changed. Preserves existing PIN. Dispatches notifications for date changes or new creations.
+   - **`reservation.cancelled`**: Finds existing code and deletes only if checkout date has passed. Prevents deletions during active stays.
+
+### SMS Notifications
+Automatic SMS sent via SerwerSMS or BudgetSMS to the guest's phone with PIN code and check-in/out details.
+SerwerSMS uses Bearer token auth + `utf=true` for Cyrillic. BudgetSMS uses `username`/`userid`/`handle` query params and auto-detects Unicode.
+
+### Email Messages
+Multilingual email sent to guest with building/lobby/apartment door codes, check-in/out times, parking info, and contact phone.
+
+## 🤖 ElevenLabs AI Agent Integration
+
+`pushover.php` is a webhook endpoint to receive conversation summaries from ElevenLabs AI Agents and forward them as Pushover notifications.
 
 ### Setup:
-1. **Configure ElevenLabs:**
-   - Go to your Agent's settings.
-   - Set the **Post-call Webhook URL** to `https://your-domain.com/thekeys/pushover.php`.
-   - Copy the **Webhook Secret**.
-
+1. **Configure ElevenLabs:** Set the **Post-call Webhook URL** to `https://your-domain.com/thekeys/pushover.php`. Copy the **Webhook Secret**.
 2. **Configure `config.php`:**
    ```php
    'elevenlabs' => [
@@ -133,236 +200,90 @@ The project includes `pushover.php`, a webhook endpoint to receive conversation 
    ]
    ```
 
-## Manual Sync & Recovery Tool
+## ⚙️ Configuration Details
 
-The project includes `manual_sync.php`, a web-based tool for recovering missed bookings or performing a bulk sync.
+### Key Concepts
 
-### Key Features:
-- **🔍 Dry Run Mode:** Preview all changes before applying them.
-- **🧠 Smart Name Matching:** Automatically matches manual codes by guest name, even if they have a "smoobu" prefix (e.g., "smoobu Lucas Schmitt" matches "Lucas Schmitt").
-- **🔗 Auto-Linking:** When a name match is found, the tool automatically appends the `Smoobu#ID` to the code's description for future ID-based syncs.
-- **🔔 Selective Notifications:** 
-    - **New Codes:** Guests ALWAYS receive SMS/Email when a new code is created.
-    - **Date Updates:** Guests receive notifications if arrival or departure dates are modified.
-    - **ID Linking Only:** NO notifications are sent if we only link a name-matched code without changing dates.
-
-### Usage:
-1. Access `https://your-domain.com/thekeys/manual_sync.php` (Dry Run).
-2. Review the proposed changes.
-3. Access `manual_sync.php?apply=1` to execute.
-
-## How It Works
-
-### Webhook Flow
-
-```
-Smoobu Event → webhook.php
-    ↓
-1. Validate request
-2. Log to database
-3. Check idempotency
-4. Process event:
-   - New → Create code + Send SMS + Send email
-   - Update → Update code + Send SMS
-   - Cancel → Delete code + Send SMS
-5. Return 200 OK
-```
-
-### SMS Notifications
-
-Automatic SMS sent via SerwerSMS to:
-- **Guest's phone** (from booking) - Receives PIN code with check-in/out details
-
-**Example SMS:**
-```
-🔑 NEW BOOKING #125712
-John Doe
-Studio 1A
-2026-01-29 → 2026-01-30
-PIN: 184717
-```
-
-### Email Messages
-
-Multilingual email sent to guest with:
-- Building entrance code
-- Lobby door code
-- Apartment door code (with PIN)
-- Check-in/check-out times
-- Parking information
-- Contact phone
-
-Languages supported: English, German, Polish, Russian, Ukrainian
-
-## API Endpoints Used
-
-### The Keys Cloud API
-
-**Authentication:**
-```
-POST /api/login_check
-```
-
-**List Codes:**
-```
-GET /fr/api/v2/partage/all/serrure/{lock_id}?_format=json
-```
-
-**Create Code:**
-```
-POST /fr/api/v2/partage/create/{lock_id}/accessoire/{id_accessoire}
-```
-
-**Update Code:**
-```
-POST /fr/api/v2/partage/accessoire/update/{code_id}
-```
-
-**Delete Code:**
-```
-POST /fr/api/v2/partage/accessoire/delete/{code_id}
-```
-
-### Smoobu API
-
-**Send Message to Guest:**
-```
-POST /api/reservations/{booking_id}/messages/send-message-to-guest
-```
-
-### SerwerSMS API
-
-**Send SMS:**
-```
-POST https://api2.serwersms.pl/messages/send_sms
-Authorization: Bearer {token}
-```
-
-## Critical: STRING Accessoire IDs
-
-⚠️ **IMPORTANT:** You **MUST** use STRING `id_accessoire` (NOT numeric `id`)!
-
-**Correct:**
-- `"OXe37UIa"` ✅
-- `"f4H7DpX0"` ✅
-- `"FBptKZHE"` ✅
-
-**Wrong:**
-- `4413` ❌
-- `4383` ❌
-
-Find STRING IDs by calling the LIST endpoint.
-
-## Configuration Details
+- **`apartment_locks`** — Maps Smoobu apartment ID → The Keys lock ID.
+- **`lock_accessoires`** — Maps lock ID → accessoire string ID (e.g., `"OXe37UIa"`). ⚠️ **IMPORTANT:** You **MUST** use the string ID from the API response field `accessoire.id_accessoire`, not a numeric ID.
+- **`digicode_prefixes`** — Maps lock ID → 2-digit PIN prefix. The full PIN is prefix + 4-digit random code.
 
 ### Finding Your IDs
+- **Lock ID:** URL shows `/compte/serrure/{LOCK_ID}/view_partage` on app.the-keys.fr.
+- **Accessoire STRING ID:** Use TheKeysAPI to list codes, check `accessoire.id_accessoire` field.
 
-**Lock ID:**
-1. Login to https://app.the-keys.fr
-2. Go to locks list
-3. Click a lock
-4. URL shows: `/compte/serrure/{LOCK_ID}/view_partage`
+## 🌐 External APIs Used
 
-**Accessoire STRING ID:**
-1. Use TheKeysAPI to list codes
-2. Check `accessoire.id_accessoire` field
-3. Use that STRING value
+| API | Auth | Format |
+|-----|------|--------|
+| The Keys Cloud | JWT (login → token) | Form-encoded POST |
+| Smoobu | `Api-Key` header | JSON |
+| ElevenLabs | HMAC Signature | JSON |
+| SerwerSMS | Bearer token | Form-encoded POST with `utf=true` |
+| BudgetSMS | `username`+`userid`+`handle` params | GET query string |
+| Pushover | `token` + `user` keys | Form-encoded POST |
 
-**Smoobu Apartment ID:**
-1. Login to Smoobu
-2. Go to apartments
-3. Click apartment
-4. Check URL or details
+## 🛠 Development Commands & Testing
 
-**Smoobu API Key:**
-1. Smoobu Settings → API
-2. Generate/copy key
+**Validate PHP syntax:**
+```bash
+php -l webhook.php
+php -l SmoobuWebhook.php
+php -l TheKeysAPI.php
+```
 
-**SerwerSMS API Token:**
-1. Login to SerwerSMS
-2. Go to API section
-3. Generate/copy token
+**Test webhook locally (simulate Smoobu event):**
+```bash
+curl -X POST http://localhost/webhook.php \
+  -H "Content-Type: application/json" \
+  -d '{"action":"reservation.new","reservation":{"id":12345, "guest-name": "Test Guest", "arrival": "2026-02-01", "departure": "2026-02-03", "apartment": {"id": 123456}, "language": "en"}}'
+```
 
-## Database Monitoring
+**Tail logs:**
+```bash
+tail -f logs/webhook.log
+```
 
-### Check Recent Webhooks
+## 📊 Database Monitoring
+
 ```sql
-SELECT * FROM webhook_logs 
-ORDER BY created_at DESC 
-LIMIT 10;
+-- Check Recent Webhooks
+SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT 10;
+
+-- Check Sync Operations
+SELECT * FROM sync_history ORDER BY created_at DESC LIMIT 10;
+
+-- Count Operations by Type
+SELECT operation, COUNT(*) as count FROM sync_history GROUP BY operation;
 ```
 
-### Check Sync Operations
-```sql
-SELECT * FROM sync_history 
-ORDER BY created_at DESC 
-LIMIT 10;
-```
+## 🔒 Security & Logging
 
-### Count Operations by Type
-```sql
-SELECT operation, COUNT(*) as count 
-FROM sync_history 
-GROUP BY operation;
-```
+- `config.php` is gitignored (contains credentials).
+- Optional **IP Whitelist** (`webhook.ip_whitelist`) and **Webhook Secret** (`webhook.secret`).
+- All webhook activity is logged to `logs/webhook.log` and the `webhook_logs` database table.
 
-## Project Structure
+## 🆘 Troubleshooting
 
-```
-thekeys/
-├── webhook.php            # Main webhook endpoint
-├── SmoobuWebhook.php     # Event handler
-├── TheKeysAPI.php        # The Keys API client
-├── pushover.php          # ElevenLabs (HMAC) to Pushover webhook
-├── config.php            # Configuration (gitignored)
-├── config.example.php    # Configuration template
-├── README.md            # This file
-├── README_WEBHOOK.md    # Webhook documentation
-├── .gitignore           # Git ignore rules
-└── logs/
-    └── webhook.log      # Webhook logs
-```
+**Webhook Not Working / Receiving Events:**
+1. Check Smoobu webhook configuration and verify URL is publicly accessible.
+2. Check `logs/webhook.log` and `webhook_logs` table.
+3. Test manually with curl.
 
-## Security
+**Codes Not Creating:**
+1. Check The Keys credentials in `config.php`.
+2. Verify apartment/lock mappings and ensure accessoire IDs are STRINGS.
+3. Check `sync_history` table for errors.
 
-- `config.php` is gitignored (contains credentials)
-- Database logs all webhook requests (audit trail)
-- Idempotency prevents duplicate processing
-- Optional IP whitelist and webhook secret validation
+**Messages Not Sending:**
+1. Verify Smoobu / SerwerSMS API tokens.
+2. Check if arrival date is in future (messages only sent to future guests).
+3. Check logs for HTTP status codes.
 
+## 📄 License & Support
 
-## Troubleshooting
-
-### Webhook Not Working
-
-1. Check `logs/webhook.log`
-2. Query `webhook_logs` table
-3. Verify URL in Smoobu is correct
-4. Test with manual POST request
-
-### SMS Not Sending
-
-1. Verify SerwerSMS token in config
-2. Check logs for HTTP status codes
-3. Verify phone numbers are in international format
-
-### Codes Not Creating
-
-1. Check The Keys credentials
-2. Verify apartment/lock mappings
-3. Ensure accessoire IDs are STRINGS
-4. Check `sync_history` table for errors
-
-## License
-
-MIT
-
-## Support
-
-Check logs and database for detailed information:
-- File: `logs/webhook.log`
-- Database: `webhook_logs` and `sync_history` tables
+MIT License - see repository for details.
+Check logs and database for detailed information: `logs/webhook.log`, `webhook_logs`, and `sync_history` tables.
 
 ---
-
-**Real-time webhook system with SMS notifications! 🎉**
+*Note for AI Assistants (Claude, Gemini, etc.): This repository contains webhook integrations. Follow the architectural constraints outlined above. Do not use a build system.*
