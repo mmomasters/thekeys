@@ -1,0 +1,17 @@
+name = "thekeys"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+[vars]
+APARTMENT_LOCKS = '{"123456":3733,"123457":3723}'
+LOCK_ACCESSOIRES = '{"3733":"OXe37UIa","3723":"SLORUV6s"}'
+DIGICODE_PREFIXES = '{"3733":"28","3723":"18"}'
+DEFAULT_TIMES = '{"check_in_hour":"15","check_in_minute":"0","check_out_hour":"12","check_out_minute":"0"}'
+SMS_PROVIDER = "serwersms"
+PIN_LENGTH = "4"
+
+# Secrets (set via `wrangler secret put <NAME>`):
+# THEKEYS_USERNAME, THEKEYS_PASSWORD, SMOOBU_API_KEY,
+# ELEVENLABS_WEBHOOK_SECRET, PUSHOVER_USER_KEY, PUSHOVER_API_TOKEN,
+# SERWERSMS_API_TOKEN, BUDGETSMS_USERNAME, BUDGETSMS_USERID,
+# BUDGETSMS_HANDLE, WEBHOOK_SECRET (optional)
