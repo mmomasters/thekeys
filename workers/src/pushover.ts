@@ -11,28 +11,6 @@ export async function handlePushover(
   const rawBody = await request.text();
   const payload = JSON.parse(rawBody);
 
-  // Check event type first (before signature validation for efficiency)
-  const type = payload.type ?? "";
-  if (type !== "post_call_transcription") {
-    return Response.json({ success: true, result: "ignored" });
-  }
-
-  // Extract data
-  const analysis = payload.data?.analysis ?? {};
-  const summary = analysis.transcript_summary ?? analysis.summary ?? "";
-  const agentId = payload.data?.agent_id ?? "unknown";
-  const agentName = payload.data?.agent_name ?? "ElevenLabs AI Agent";
-
-  const callerId =
-    payload.data?.metadata?.phone_call?.external_number ??
-    payload.data?.conversation_initiation_client_data?.dynamic_variables
-      ?.system__caller_id ??
-    "Unknown";
-
-  if (!summary) {
-    return Response.json({ success: true, result: "no_summary" });
-  }
-
   // Validate HMAC signature if secret is configured
   if (env.ELEVENLABS_WEBHOOK_SECRET) {
     const allHeaders = Object.fromEntries(request.headers.entries());
@@ -82,6 +60,28 @@ export async function handlePushover(
     if (expectedSignature !== signature) {
       return Response.json({ error: "Invalid signature" }, { status: 401 });
     }
+  }
+
+  // Check event type
+  const type = payload.type ?? "";
+  if (type !== "post_call_transcription") {
+    return Response.json({ success: true, result: "ignored" });
+  }
+
+  // Extract data
+  const analysis = payload.data?.analysis ?? {};
+  const summary = analysis.transcript_summary ?? analysis.summary ?? "";
+  const agentId = payload.data?.agent_id ?? "unknown";
+  const agentName = payload.data?.agent_name ?? "ElevenLabs AI Agent";
+
+  const callerId =
+    payload.data?.metadata?.phone_call?.external_number ??
+    payload.data?.conversation_initiation_client_data?.dynamic_variables
+      ?.system__caller_id ??
+    "Unknown";
+
+  if (!summary) {
+    return Response.json({ success: true, result: "no_summary" });
   }
 
   // Send to Pushover

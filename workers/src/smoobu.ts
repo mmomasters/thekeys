@@ -188,9 +188,10 @@ export async function handleSmoobuWebhook(
     return Response.json({ error: "Method not allowed" }, { status: 400 });
   }
 
+  const rawBody = await request.text();
   let payload: SmoobuWebhookPayload;
   try {
-    payload = (await request.json()) as SmoobuWebhookPayload;
+    payload = JSON.parse(rawBody) as SmoobuWebhookPayload;
   } catch {
     return Response.json({ error: "Invalid JSON payload" }, { status: 400 });
   }
@@ -202,18 +203,6 @@ export async function handleSmoobuWebhook(
     return Response.json({ success: true, result: "ignored", action });
   }
 
-  const bookingData: SmoobuBooking =
-    payload.data ?? payload.booking ?? (payload as unknown as SmoobuBooking);
-
-  if (bookingData.type === "cancellation") {
-    const api = new TheKeysAPI(env.THEKEYS_USERNAME, env.THEKEYS_PASSWORD);
-    if (!(await api.login())) {
-      return Response.json({ success: false, error: "Failed to login to The Keys API" });
-    }
-    const result = await handleCancelledReservation(bookingData, env, api);
-    return Response.json({ success: true, result, event: "reservation.cancelled", booking_id: bookingData.id });
-  }
-
   if (env.IP_WHITELIST) {
     const whitelist = parseJsonVar<string[]>(env.IP_WHITELIST);
     const clientIp = request.headers.get("cf-connecting-ip") ?? "";
@@ -223,7 +212,6 @@ export async function handleSmoobuWebhook(
   }
 
   if (env.WEBHOOK_SECRET) {
-    const rawBody = JSON.stringify(payload);
     const signature = request.headers.get("x-smoobu-signature") ?? "";
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
@@ -236,6 +224,18 @@ export async function handleSmoobuWebhook(
     if (expected !== signature) {
       return Response.json({ error: "Invalid signature" }, { status: 401 });
     }
+  }
+
+  const bookingData: SmoobuBooking =
+    payload.data ?? payload.booking ?? (payload as unknown as SmoobuBooking);
+
+  if (bookingData.type === "cancellation") {
+    const api = new TheKeysAPI(env.THEKEYS_USERNAME, env.THEKEYS_PASSWORD);
+    if (!(await api.login())) {
+      return Response.json({ success: false, error: "Failed to login to The Keys API" });
+    }
+    const result = await handleCancelledReservation(bookingData, env, api);
+    return Response.json({ success: true, result, event: "reservation.cancelled", booking_id: bookingData.id });
   }
 
   const api = new TheKeysAPI(env.THEKEYS_USERNAME, env.THEKEYS_PASSWORD);

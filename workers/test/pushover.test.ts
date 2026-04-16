@@ -20,7 +20,7 @@ describe("handlePushover", () => {
       type: "conversation_started",
       data: {},
     });
-    const res = await handlePushover(req, mockEnv());
+    const res = await handlePushover(req, mockEnv({ ELEVENLABS_WEBHOOK_SECRET: "" }));
     expect(res.status).toBe(200);
     const body = await res.json() as { result: string };
     expect(body.result).toBe("ignored");
@@ -36,7 +36,7 @@ describe("handlePushover", () => {
         agent_id: "abc",
       },
     });
-    const res = await handlePushover(req, mockEnv());
+    const res = await handlePushover(req, mockEnv({ ELEVENLABS_WEBHOOK_SECRET: "" }));
     expect(res.status).toBe(200);
     const body = await res.json() as { result: string };
     expect(body.result).toBe("no_summary");
