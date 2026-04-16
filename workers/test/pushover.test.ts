@@ -15,6 +15,28 @@ describe("handlePushover", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 for malformed JSON body", async () => {
+    const req = new Request("https://test.workers.dev/pushover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+    const res = await handlePushover(req, mockEnv());
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("Invalid JSON payload");
+  });
+
+  it("returns 400 for empty POST body", async () => {
+    const req = new Request("https://test.workers.dev/pushover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "",
+    });
+    const res = await handlePushover(req, mockEnv());
+    expect(res.status).toBe(400);
+  });
+
   it("ignores non-post_call_transcription events", async () => {
     const req = makeRequest("/pushover", {
       type: "conversation_started",

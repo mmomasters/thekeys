@@ -9,7 +9,12 @@ export async function handlePushover(
   }
 
   const rawBody = await request.text();
-  const payload = JSON.parse(rawBody);
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return Response.json({ error: "Invalid JSON payload" }, { status: 400 });
+  }
 
   // Validate HMAC signature if secret is configured
   if (env.ELEVENLABS_WEBHOOK_SECRET) {
