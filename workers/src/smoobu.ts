@@ -116,8 +116,6 @@ async function handleUpdatedReservation(
   if (!lockId) return { status: "skipped", message: "No lock mapping" };
 
   const lockAccessoires = parseJsonVar<Record<string, string>>(env.LOCK_ACCESSOIRES);
-  const idAccessoire = lockAccessoires[String(lockId)];
-  if (!idAccessoire) return { status: "skipped", message: "No accessoire mapping" };
 
   // Search for existing code on the target lock
   const existingCode = await findExistingCode(api, lockId, booking.id);
@@ -133,6 +131,7 @@ async function handleUpdatedReservation(
         break;
       }
     }
+    // Creating a new code requires accessoire mapping
     return handleNewReservation(booking, env, api);
   }
 
