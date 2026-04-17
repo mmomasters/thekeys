@@ -8,16 +8,14 @@ The webhook endpoints run on **Cloudflare Workers** (TypeScript, in `workers/`).
 
 - ✅ **Real-time sync** - No polling, instant updates via webhooks
 - ✅ **Event-driven** - Only processes what changes (Reservation Created, Updated, Cancelled)
-- ✅ **Idempotent** - Prevents duplicate processing (5-minute window)
-- ✅ **Smart Matching** - Matches manual codes by guest name (prefix-aware)
-- ✅ **SMS notifications** - Guest receives PIN via SMS + admin notifications (SerwerSMS or BudgetSMS)
+- ✅ **SMS notifications** - Guest receives PIN via SMS (SerwerSMS or BudgetSMS)
 - ✅ **Email messages** - Multilingual messages sent to guests (EN/DE/PL/RU/UA)
 - ✅ **ElevenLabs AI Agent Integration** - Forwards conversation summaries to Pushover
-- ✅ **Manual Sync Tool** - Recovery tool with dry-run and smart linking
-- ✅ **Database logging** - Complete audit trail of all operations
+- ✅ **Structured logging** - JSON logs with 92-day retention via Cloudflare Workers Logs
+- ✅ **Manual Sync Tool** - Recovery tool with dry-run and smart linking (VPS)
 - ✅ **PIN preservation** - Never changes existing codes
 - ✅ **Apartment changes** - Handles booking moves between apartments
-- ✅ **Auto cleanup** - Cancelled bookings removed immediately after checkout
+- ✅ **Auto cleanup** - Cancelled bookings removed immediately
 
 ## 📋 Requirements
 
