@@ -4,7 +4,7 @@ compatibility_date = "2025-04-01"
 
 [vars]
 APARTMENT_LOCKS = '{"505200":3723,"505203":3733,"505206":19649,"505209":3735}'
-LOCK_ACCESSOIRES = '{"3723":"OXe37UIa","3733":"f4H7DpX0,"19649":"FBptKZHE","3735":"d6jnYC5h""}'
+LOCK_ACCESSOIRES = '{"3723":"OXe37UIa","3733":"f4H7DpX0","19649":"FBptKZHE","3735":"d6jnYC5h"}'
 DIGICODE_PREFIXES = '{"3723":"18","3733":"28","19649":"36","3735":"30"}'
 DEFAULT_TIMES = '{"check_in_hour":"15","check_in_minute":"0","check_out_hour":"12","check_out_minute":"0"}'
 SMS_PROVIDER = "budgetsms"
