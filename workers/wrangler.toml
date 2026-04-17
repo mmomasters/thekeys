@@ -10,6 +10,9 @@ DEFAULT_TIMES = '{"check_in_hour":"15","check_in_minute":"0","check_out_hour":"1
 SMS_PROVIDER = "budgetsms"
 PIN_LENGTH = "4"
 
+[observability]
+enabled = true
+
 # Secrets (set via `wrangler secret put <NAME>`):
 # THEKEYS_USERNAME, THEKEYS_PASSWORD, SMOOBU_API_KEY,
 # ELEVENLABS_WEBHOOK_SECRET, PUSHOVER_USER_KEY, PUSHOVER_API_TOKEN,
