@@ -38,6 +38,7 @@ export async function handlePushover(
     }
 
     if (!timestamp || !signature) {
+      console.error(JSON.stringify({ event: "pushover_auth_failed", reason: "missing_signature_components" }));
       return Response.json(
         { error: "Missing signature components" },
         { status: 401 }
@@ -63,27 +64,30 @@ export async function handlePushover(
       .join("");
 
     if (expectedSignature !== signature) {
+      console.error(JSON.stringify({ event: "pushover_auth_failed", reason: "signature_mismatch" }));
       return Response.json({ error: "Invalid signature" }, { status: 401 });
     }
   }
 
   // Check event type
-  const type = payload.type ?? "";
+  const type = (payload.type as string) ?? "";
   if (type !== "post_call_transcription") {
+    console.log(JSON.stringify({ event: "pushover_ignored", type }));
     return Response.json({ success: true, result: "ignored" });
   }
 
   // Extract data
-  const analysis = payload.data?.analysis ?? {};
-  const summary = analysis.transcript_summary ?? analysis.summary ?? "";
-  const agentId = payload.data?.agent_id ?? "unknown";
-  const agentName = payload.data?.agent_name ?? "ElevenLabs AI Agent";
+  const data = payload.data as Record<string, unknown> | undefined;
+  const analysis = (data?.analysis as Record<string, unknown>) ?? {};
+  const summary = (analysis.transcript_summary as string) ?? (analysis.summary as string) ?? "";
+  const agentId = (data?.agent_id as string) ?? "unknown";
+  const agentName = (data?.agent_name as string) ?? "ElevenLabs AI Agent";
 
-  const callerId =
-    payload.data?.metadata?.phone_call?.external_number ??
-    payload.data?.conversation_initiation_client_data?.dynamic_variables
-      ?.system__caller_id ??
-    "Unknown";
+  const metadata = data?.metadata as Record<string, unknown> | undefined;
+  const phoneCall = metadata?.phone_call as Record<string, unknown> | undefined;
+  const clientData = data?.conversation_initiation_client_data as Record<string, unknown> | undefined;
+  const dynVars = clientData?.dynamic_variables as Record<string, unknown> | undefined;
+  const callerId = (phoneCall?.external_number as string) ?? (dynVars?.system__caller_id as string) ?? "Unknown";
 
   if (!summary) {
     return Response.json({ success: true, result: "no_summary" });
@@ -101,11 +105,13 @@ export async function handlePushover(
     url_title: "Open in Chrome",
   });
 
-  await fetch("https://api.pushover.net/1/messages.json", {
+  const pushoverRes = await fetch("https://api.pushover.net/1/messages.json", {
     method: "POST",
     body: pushoverBody.toString(),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
+
+  console.log(JSON.stringify({ event: "pushover_sent", agentName, callerId, httpCode: pushoverRes.status }));
 
   return Response.json({ success: true });
 }

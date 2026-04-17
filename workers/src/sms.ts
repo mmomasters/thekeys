@@ -44,8 +44,14 @@ export async function sendViaSerwersms(
 
   if (res.status === 200) {
     const data = (await res.json()) as { success?: boolean };
+    if (data.success) {
+      console.log(JSON.stringify({ event: "sms_sent", provider: "serwersms", recipient }));
+    } else {
+      console.error(JSON.stringify({ event: "sms_failed", provider: "serwersms", recipient, httpCode: res.status }));
+    }
     return !!data.success;
   }
+  console.error(JSON.stringify({ event: "sms_failed", provider: "serwersms", recipient, httpCode: res.status }));
   return false;
 }
 
@@ -74,8 +80,14 @@ export async function sendViaBudgetSMS(
 
   if (res.status === 200) {
     const text = await res.text();
-    return text.startsWith("OK");
+    if (text.startsWith("OK")) {
+      console.log(JSON.stringify({ event: "sms_sent", provider: "budgetsms", recipient }));
+      return true;
+    }
+    console.error(JSON.stringify({ event: "sms_failed", provider: "budgetsms", recipient, response: text }));
+    return false;
   }
+  console.error(JSON.stringify({ event: "sms_failed", provider: "budgetsms", recipient, httpCode: res.status }));
   return false;
 }
 
@@ -84,7 +96,10 @@ export async function sendSMSNotification(
   action: string, env: Env
 ): Promise<boolean> {
   const guestPhone = cleanPhone(booking.phone ?? "");
-  if (!guestPhone) return false;
+  if (!guestPhone) {
+    console.log(JSON.stringify({ event: "sms_skipped", reason: "no_phone", bookingId: booking.id }));
+    return false;
+  }
 
   const language = (booking.language ?? "en").toLowerCase();
 

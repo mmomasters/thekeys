@@ -56,7 +56,13 @@ async function sendGuestMessage(
     }
   );
 
-  return res.status === 200 || res.status === 201;
+  const ok = res.status === 200 || res.status === 201;
+  if (ok) {
+    console.log(JSON.stringify({ event: "guest_message_sent", bookingId: booking.id, language }));
+  } else {
+    console.error(JSON.stringify({ event: "guest_message_failed", bookingId: booking.id, httpCode: res.status }));
+  }
+  return ok;
 }
 
 async function handleNewReservation(
@@ -65,14 +71,23 @@ async function handleNewReservation(
   const apartmentId = String(booking.apartment?.id ?? "");
   const apartmentLocks = parseJsonVar<Record<string, number>>(env.APARTMENT_LOCKS);
   const lockId = apartmentLocks[apartmentId];
-  if (!lockId) return { status: "skipped", message: "No lock mapping" };
+  if (!lockId) {
+    console.log(JSON.stringify({ event: "skipped", reason: "no_lock_mapping", bookingId: booking.id, apartmentId }));
+    return { status: "skipped", message: "No lock mapping" };
+  }
 
   const lockAccessoires = parseJsonVar<Record<string, string>>(env.LOCK_ACCESSOIRES);
   const idAccessoire = lockAccessoires[String(lockId)];
-  if (!idAccessoire) return { status: "skipped", message: "No accessoire mapping" };
+  if (!idAccessoire) {
+    console.log(JSON.stringify({ event: "skipped", reason: "no_accessoire_mapping", bookingId: booking.id, lockId }));
+    return { status: "skipped", message: "No accessoire mapping" };
+  }
 
   const existing = await findExistingCode(api, lockId, booking.id);
-  if (existing) return { status: "exists", message: "Code already exists" };
+  if (existing) {
+    console.log(JSON.stringify({ event: "skipped", reason: "code_exists", bookingId: booking.id }));
+    return { status: "exists", message: "Code already exists" };
+  }
 
   const pinLength = parseInt(env.PIN_LENGTH, 10) || 4;
   const pinCode = generatePIN(pinLength);
@@ -83,7 +98,10 @@ async function handleNewReservation(
   const guestName = booking["guest-name"] ?? "Guest";
   const arrival = booking.arrival;
   const departure = booking.departure;
-  if (!arrival || !departure) return { status: "error", message: "Missing arrival or departure dates" };
+  if (!arrival || !departure) {
+    console.error(JSON.stringify({ event: "error", reason: "missing_dates", bookingId: booking.id }));
+    return { status: "error", message: "Missing arrival or departure dates" };
+  }
 
   const times = parseJsonVar<DefaultTimes>(env.DEFAULT_TIMES);
   const result = await api.createCode(
@@ -94,9 +112,14 @@ async function handleNewReservation(
     `Smoobu#${booking.id}`
   );
 
-  if (!result) return { status: "error", message: "Failed to create code" };
+  if (!result) {
+    console.error(JSON.stringify({ event: "error", reason: "create_failed", bookingId: booking.id, lockId }));
+    return { status: "error", message: "Failed to create code" };
+  }
 
   const apartmentName = booking.apartment?.name ?? "your apartment";
+  console.log(JSON.stringify({ event: "code_created", bookingId: booking.id, codeId: result.id, guestName, lockId }));
+
   await sendSMSNotification(booking, fullPin, apartmentName, "new", env);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -127,10 +150,12 @@ async function handleUpdatedReservation(
       if (searchLockId === lockId) continue;
       const code = await findExistingCode(api, searchLockId, booking.id);
       if (code) {
+        console.log(JSON.stringify({ event: "apartment_moved", bookingId: booking.id, fromLock: searchLockId, toLock: lockId }));
         await api.deleteCode(code.id);
         break;
       }
     }
+    console.log(JSON.stringify({ event: "code_not_found", bookingId: booking.id, action: "creating_new" }));
     // Creating a new code requires accessoire mapping
     return handleNewReservation(booking, env, api);
   }
@@ -148,12 +173,18 @@ async function handleUpdatedReservation(
     active: true, description: `Smoobu#${booking.id}`,
   });
 
-  if (!success) return { status: "error", message: "Failed to update code" };
+  if (!success) {
+    console.error(JSON.stringify({ event: "error", reason: "update_failed", bookingId: booking.id, codeId: existingCode.id }));
+    return { status: "error", message: "Failed to update code" };
+  }
 
+  const guestName = booking["guest-name"] ?? "Guest";
   const apartmentName = booking.apartment?.name ?? "your apartment";
   const prefixes = parseJsonVar<Record<string, string>>(env.DIGICODE_PREFIXES);
   const prefix = prefixes[String(lockId)] ?? "";
   const fullPin = prefix + existingCode.code;
+
+  console.log(JSON.stringify({ event: "code_updated", bookingId: booking.id, codeId: existingCode.id, guestName }));
 
   await sendSMSNotification(booking, fullPin, apartmentName, "update", env);
   await sendGuestMessage(booking, fullPin, apartmentName, env.SMOOBU_API_KEY);
@@ -172,11 +203,18 @@ async function handleCancelledReservation(
     if (code) { existingCode = code; break; }
   }
 
-  if (!existingCode) return { status: "not_found", message: "Code not found" };
+  if (!existingCode) {
+    console.log(JSON.stringify({ event: "code_not_found", bookingId: booking.id, action: "cancel" }));
+    return { status: "not_found", message: "Code not found" };
+  }
 
   const success = await api.deleteCode(existingCode.id);
-  if (!success) return { status: "error", message: "Failed to delete code" };
+  if (!success) {
+    console.error(JSON.stringify({ event: "error", reason: "delete_failed", bookingId: booking.id, codeId: existingCode.id }));
+    return { status: "error", message: "Failed to delete code" };
+  }
 
+  console.log(JSON.stringify({ event: "code_deleted", bookingId: booking.id, codeId: existingCode.id }));
   return { status: "deleted", code_id: existingCode.id };
 }
 
@@ -197,6 +235,8 @@ export async function handleSmoobuWebhook(
 
   const action = payload.action ?? "";
   const eventType = ACTION_MAP[action] ?? "ignore";
+  const bookingPreview = payload.data ?? payload.booking;
+  console.log(JSON.stringify({ event: "webhook_received", action, eventType, bookingId: bookingPreview?.id, guestName: bookingPreview?.["guest-name"] }));
 
   if (eventType === "ignore") {
     return Response.json({ success: true, result: "ignored", action });
