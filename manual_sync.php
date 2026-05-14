@@ -280,6 +280,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
 
         $webhookHandler = new SmoobuWebhook($config);
 
+        $claimedCodeIds = [];
         foreach ($bookings as $booking) {
             $bookingId = $booking['id'];
             $guestName = cleanName($booking['guest-name'] ?? 'Guest');
@@ -311,15 +312,27 @@ $apply = ($_GET['apply'] ?? false) == '1';
             if (isset($existingCodes[$bookingId])) {
                 $existing = $existingCodes[$bookingId];
             } else {
-                // Try to match by Name as fallback (important for "smoobu" prefix cases)
+                // Try to match by Name as fallback (important for "smoobu" prefix cases).
+                // Skip codes already linked to a Smoobu booking — otherwise repeat-guest
+                // bookings would keep re-claiming the same code and ping-pong its dates.
                 $normGuestName = normalizeName($guestName);
                 if (isset($existingCodesByName[$lockId][$normGuestName])) {
-                    $existing = $existingCodesByName[$lockId][$normGuestName];
-                    $matchedBy = 'name';
+                    $candidate = $existingCodesByName[$lockId][$normGuestName];
+                    if (!preg_match('/Smoobu#\d+/', $candidate['description'] ?? '')) {
+                        $existing = $candidate;
+                        $matchedBy = 'name';
+                    }
                 }
             }
-            
+
+            // Guard against re-claiming a code already updated by an earlier booking
+            // in this same run (defense in depth against legacy merged descriptions).
+            if ($existing && isset($claimedCodeIds[$existing['code_id']])) {
+                $existing = null;
+            }
+
             if ($existing) {
+                $claimedCodeIds[$existing['code_id']] = true;
                 if ($existing['lock_id'] != $lockId) {
                     echo '<div class="booking">';
                     echo '<div class="booking-action">→ Booking #' . $bookingId . ' (' . htmlspecialchars($guestName) . ')</div>';
