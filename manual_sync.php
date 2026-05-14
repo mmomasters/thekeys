@@ -280,6 +280,51 @@ $apply = ($_GET['apply'] ?? false) == '1';
 
         $webhookHandler = new SmoobuWebhook($config);
 
+        // Pre-pass: when multiple current bookings could name-match the same
+        // unlinked code, pick one preferred claimant (dates match the code's
+        // current dates; fallback: earliest arrival). Others fall through to
+        // "Missing code" and get their own new code.
+        $preferredNameClaim = [];
+        $nameGroups = [];
+        foreach ($bookings as $b) {
+            $bId = $b['id'] ?? null;
+            if (!$bId || isset($existingCodes[$bId])) continue;
+            $bArrival = $b['arrival'] ?? null;
+            $bDeparture = $b['departure'] ?? null;
+            if (!$bArrival || !$bDeparture) continue;
+            $bApartmentId = (string)($b['apartment']['id'] ?? '');
+            $bLockId = $config['apartment_locks'][$bApartmentId] ?? null;
+            if (!$bLockId) continue;
+            $bNormName = normalizeName(cleanName($b['guest-name'] ?? 'Guest'));
+            if (!isset($existingCodesByName[$bLockId][$bNormName])) continue;
+            $bCandidate = $existingCodesByName[$bLockId][$bNormName];
+            if (preg_match('/Smoobu#\d+/', $bCandidate['description'] ?? '')) continue;
+            $cId = $bCandidate['code_id'];
+            if (!isset($nameGroups[$cId])) {
+                $nameGroups[$cId] = ['code' => $bCandidate, 'bookings' => []];
+            }
+            $nameGroups[$cId]['bookings'][] = $b;
+        }
+        foreach ($nameGroups as $cId => $group) {
+            $code = $group['code'];
+            $best = null;
+            foreach ($group['bookings'] as $b) {
+                if (($b['arrival'] ?? '') === ($code['start'] ?? '')
+                    && ($b['departure'] ?? '') === ($code['end'] ?? '')) {
+                    $best = $b;
+                    break;
+                }
+            }
+            if (!$best) {
+                $sorted = $group['bookings'];
+                usort($sorted, function ($a, $b) {
+                    return strcmp($a['arrival'] ?? '', $b['arrival'] ?? '');
+                });
+                $best = $sorted[0];
+            }
+            $preferredNameClaim[$cId] = $best['id'];
+        }
+
         $claimedCodeIds = [];
         foreach ($bookings as $booking) {
             $bookingId = $booking['id'];
@@ -319,8 +364,13 @@ $apply = ($_GET['apply'] ?? false) == '1';
                 if (isset($existingCodesByName[$lockId][$normGuestName])) {
                     $candidate = $existingCodesByName[$lockId][$normGuestName];
                     if (!preg_match('/Smoobu#\d+/', $candidate['description'] ?? '')) {
-                        $existing = $candidate;
-                        $matchedBy = 'name';
+                        $cId = $candidate['code_id'];
+                        // Only the preferred claimant in the name group can claim
+                        // (date-match wins; earliest arrival as fallback).
+                        if (!isset($preferredNameClaim[$cId]) || $preferredNameClaim[$cId] == $bookingId) {
+                            $existing = $candidate;
+                            $matchedBy = 'name';
+                        }
                     }
                 }
             }
