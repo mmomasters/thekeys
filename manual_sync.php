@@ -200,27 +200,36 @@ $apply = ($_GET['apply'] ?? false) == '1';
         $startDate = date('Y-m-d');
         $endDate = date('Y-m-d', strtotime('+90 days'));
 
-        $url = "https://login.smoobu.com/api/reservations?arrivalFrom={$startDate}&arrivalTo={$endDate}";
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Api-Key: ' . $smoobuApiKey,
-            'Cache-Control: no-cache'
-        ]);
+        // Smoobu's /api/reservations endpoint is paginated. Loop every page
+        // (pageSize 100 = Smoobu's max) so no booking is silently dropped.
+        $bookings = [];
+        $page = 1;
+        do {
+            $url = "https://login.smoobu.com/api/reservations?arrivalFrom={$startDate}&arrivalTo={$endDate}&pageSize=100&page={$page}";
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Api-Key: ' . $smoobuApiKey,
+                'Cache-Control: no-cache'
+            ]);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
 
-        if ($httpCode !== 200) {
-            echo '<div class="step-content error">❌ ERROR: Failed to fetch Smoobu bookings (HTTP ' . $httpCode . ')</div>';
-            echo '</div></div></body></html>';
-            exit;
-        }
+            if ($httpCode !== 200) {
+                echo '<div class="step-content error">❌ ERROR: Failed to fetch Smoobu bookings (HTTP ' . $httpCode . ', page ' . $page . ')</div>';
+                echo '</div></div></body></html>';
+                exit;
+            }
 
-        $data = json_decode($response, true);
-        $bookings = $data['bookings'] ?? [];
-        echo '<div class="step-content ok">✓ Found ' . count($bookings) . ' bookings</div>';
+            $data = json_decode($response, true);
+            $bookings = array_merge($bookings, $data['bookings'] ?? []);
+            $pageCount = (int)($data['page_count'] ?? 1);
+            $page++;
+        } while ($page <= $pageCount);
+
+        echo '<div class="step-content ok">✓ Found ' . count($bookings) . ' bookings (' . $pageCount . ' page(s))</div>';
         echo '</div>';
 
         // Step 3: Scan existing codes
