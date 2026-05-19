@@ -558,6 +558,80 @@ class SmoobuWebhook {
         }
     }
     
+    /**
+     * Check whether the check-in PIN message already exists in Smoobu for a
+     * reservation, by reading its message history (GET .../messages).
+     *
+     * The check-in message is identified by an outbox message (type 2) whose
+     * subject is one of the fixed check-in subjects, or whose body contains
+     * the full PIN.
+     *
+     * @return bool|null true = message found, false = confirmed absent,
+     *                    null = could not verify (API/curl error)
+     */
+    public function wasPINMessageSent($bookingId, $fullPin) {
+        $knownSubjects = $this->checkinSubjects();
+
+        $page = 1;
+        $pageCount = 1;
+        $maxPages = 50; // safety cap against a runaway pagination loop
+        do {
+            $url = "https://login.smoobu.com/api/reservations/{$bookingId}/messages?page={$page}";
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Api-Key: ' . $this->config['smoobu']['api_key']
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode !== 200 || $response === false) {
+                $this->log("Could not fetch messages for booking {$bookingId}: HTTP {$httpCode}", 'WARNING');
+                return null;
+            }
+
+            $data = json_decode($response, true);
+            if (!is_array($data)) {
+                $this->log("Invalid messages response for booking {$bookingId}", 'WARNING');
+                return null;
+            }
+
+            foreach (($data['messages'] ?? []) as $msg) {
+                if ((int)($msg['type'] ?? 0) !== 2) {
+                    continue; // only outbox (sent) messages
+                }
+                $subject = trim((string)($msg['subject'] ?? ''));
+                if ($subject !== '' && in_array($subject, $knownSubjects, true)) {
+                    return true;
+                }
+                $body = (string)($msg['message'] ?? '') . (string)($msg['messageHtml'] ?? '');
+                if ($fullPin !== '' && strpos($body, $fullPin) !== false) {
+                    return true;
+                }
+            }
+
+            $pageCount = (int)($data['page_count'] ?? 1);
+            $page++;
+        } while ($page <= $pageCount && $page <= $maxPages);
+
+        return false;
+    }
+
+    /**
+     * Distinct check-in message subjects across all language files.
+     */
+    private function checkinSubjects() {
+        $subjects = [];
+        foreach ((glob(__DIR__ . '/languages/*.php') ?: []) as $langFile) {
+            $lang = require $langFile;
+            if (is_array($lang) && !empty($lang['subject'])) {
+                $subjects[] = $lang['subject'];
+            }
+        }
+        return array_values(array_unique($subjects));
+    }
+
     private function logWebhook($eventType, $bookingId, $payload) {
         $stmt = $this->db->prepare("
             INSERT INTO webhook_logs (event_type, booking_id, payload, processed)
