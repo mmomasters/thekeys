@@ -1,6 +1,7 @@
 import type { Env, SmoobuBooking, SmoobuWebhookPayload, DefaultTimes, TheKeysCode } from "./types";
 import { TheKeysAPI } from "./thekeys";
 import { sendSMSNotification } from "./sms";
+import { sendPushover } from "./pushover";
 import { loadLanguage } from "./languages";
 
 const ACTION_MAP: Record<string, string> = {
@@ -37,8 +38,14 @@ async function findExistingCode(
   return null;
 }
 
+// Retries the Smoobu guest-message send to absorb transient failures.
+// On a confirmed failure (all attempts exhausted) it raises a Pushover
+// alert so the host can re-post manually — the guest still has the SMS.
+const GUEST_MESSAGE_ATTEMPTS = 3;
+const GUEST_MESSAGE_BACKOFF_MS = [400, 1200];
+
 async function sendGuestMessage(
-  booking: SmoobuBooking, fullPin: string, apartmentName: string, smoobuApiKey: string
+  booking: SmoobuBooking, fullPin: string, apartmentName: string, env: Env
 ): Promise<boolean> {
   const language = (booking.language ?? "en").toLowerCase();
   const lang = loadLanguage(
@@ -47,22 +54,42 @@ async function sendGuestMessage(
     booking.arrival ?? "", booking.departure ?? ""
   );
 
-  const res = await fetch(
-    `https://login.smoobu.com/api/reservations/${booking.id}/messages/send-message-to-guest`,
-    {
-      method: "POST",
-      headers: { "Api-Key": smoobuApiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ subject: lang.subject, messageBody: lang.message }),
+  let lastDetail = "";
+  for (let attempt = 1; attempt <= GUEST_MESSAGE_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(
+        `https://login.smoobu.com/api/reservations/${booking.id}/messages/send-message-to-guest`,
+        {
+          method: "POST",
+          headers: { "Api-Key": env.SMOOBU_API_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ subject: lang.subject, messageBody: lang.message }),
+        }
+      );
+      const body = (await res.text()).slice(0, 300);
+      if (res.status === 200 || res.status === 201) {
+        console.log(JSON.stringify({ event: "guest_message_sent", bookingId: booking.id, language, attempt }));
+        return true;
+      }
+      lastDetail = `HTTP ${res.status}: ${body}`;
+      console.error(JSON.stringify({ event: "guest_message_attempt_failed", bookingId: booking.id, attempt, httpCode: res.status, body }));
+    } catch (e) {
+      lastDetail = e instanceof Error ? e.message : "network error";
+      console.error(JSON.stringify({ event: "guest_message_attempt_failed", bookingId: booking.id, attempt, error: lastDetail }));
     }
-  );
-
-  const ok = res.status === 200 || res.status === 201;
-  if (ok) {
-    console.log(JSON.stringify({ event: "guest_message_sent", bookingId: booking.id, language }));
-  } else {
-    console.error(JSON.stringify({ event: "guest_message_failed", bookingId: booking.id, httpCode: res.status }));
+    if (attempt < GUEST_MESSAGE_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, GUEST_MESSAGE_BACKOFF_MS[attempt - 1]));
+    }
   }
-  return ok;
+
+  console.error(JSON.stringify({ event: "guest_message_failed", bookingId: booking.id, attempts: GUEST_MESSAGE_ATTEMPTS, detail: lastDetail }));
+  await sendPushover(
+    env,
+    "⚠️ Guest message failed",
+    `Smoobu message could not be delivered for booking ${booking.id} (${booking["guest-name"] ?? "Guest"}).\n` +
+      `Apartment: ${apartmentName}\nPIN: ${fullPin}\nLast error: ${lastDetail}\n\n` +
+      `The guest still received the SMS — re-post the message manually in Smoobu.`
+  );
+  return false;
 }
 
 async function handleNewReservation(
@@ -124,7 +151,7 @@ async function handleNewReservation(
 
   const today = new Date().toISOString().slice(0, 10);
   if (today <= arrival) {
-    await sendGuestMessage(booking, fullPin, apartmentName, env.SMOOBU_API_KEY);
+    await sendGuestMessage(booking, fullPin, apartmentName, env);
   }
 
   return { status: "created", code_id: result.id, pin: pinCode };
@@ -187,7 +214,7 @@ async function handleUpdatedReservation(
   console.log(JSON.stringify({ event: "code_updated", bookingId: booking.id, codeId: existingCode.id, guestName }));
 
   await sendSMSNotification(booking, fullPin, apartmentName, "update", env);
-  await sendGuestMessage(booking, fullPin, apartmentName, env.SMOOBU_API_KEY);
+  await sendGuestMessage(booking, fullPin, apartmentName, env);
 
   return { status: "updated", code_id: existingCode.id };
 }

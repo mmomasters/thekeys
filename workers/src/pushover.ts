@@ -1,5 +1,31 @@
 import type { Env } from "./types";
 
+/**
+ * Send a Pushover notification to the host. Returns true on HTTP 200.
+ * Never throws — a failed alert must not break the calling flow.
+ */
+export async function sendPushover(
+  env: Env,
+  title: string,
+  message: string
+): Promise<boolean> {
+  try {
+    const res = await fetch("https://api.pushover.net/1/messages.json", {
+      method: "POST",
+      body: new URLSearchParams({
+        token: env.PUSHOVER_API_TOKEN,
+        user: env.PUSHOVER_USER_KEY,
+        title,
+        message,
+      }).toString(),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
 export async function handlePushover(
   request: Request,
   env: Env

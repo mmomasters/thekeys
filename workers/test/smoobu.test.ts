@@ -53,6 +53,14 @@ function mockSmsSuccess() {
   return new Response(JSON.stringify({ success: true }), { status: 200 });
 }
 
+function mockSmoobuMessageFail() {
+  return new Response("Service Unavailable", { status: 503 });
+}
+
+function mockPushoverSuccess() {
+  return new Response(JSON.stringify({ status: 1 }), { status: 200 });
+}
+
 describe("handleSmoobuWebhook", () => {
   beforeEach(() => vi.restoreAllMocks());
 
@@ -195,5 +203,68 @@ describe("handleSmoobuWebhook", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { success: boolean; result: { status: string } };
     expect(body.result.status).toBe("not_found");
+  });
+
+  it("retries the guest message and succeeds without alerting", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(mockTheKeysLogin())
+      .mockResolvedValueOnce(mockListCodesEmpty())
+      .mockResolvedValueOnce(mockCreateCodeSuccess())
+      .mockResolvedValueOnce(mockSmsSuccess())
+      .mockResolvedValueOnce(mockSmoobuMessageFail())      // attempt 1 fails
+      .mockResolvedValueOnce(mockSmoobuMessageSuccess());  // attempt 2 succeeds
+
+    const req = makeRequest("/webhook", {
+      action: "newReservation",
+      data: {
+        id: 510, "guest-name": "Faye",
+        arrival: "2026-08-01", departure: "2026-08-05",
+        apartment: { id: 123456, name: "Apt 5" },
+        language: "en", phone: "+48111222333",
+      },
+    });
+
+    const res = await handleSmoobuWebhook(req, mockEnv());
+    expect(res.status).toBe(200);
+
+    // login, listCodes, create, SMS, message-fail, message-ok — and no Pushover
+    expect(fetchSpy.mock.calls.length).toBe(6);
+    const pushoverCalled = fetchSpy.mock.calls.some((c) =>
+      String(c[0]).includes("pushover")
+    );
+    expect(pushoverCalled).toBe(false);
+  });
+
+  it("alerts via Pushover when the guest message fails every retry", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(mockTheKeysLogin())
+      .mockResolvedValueOnce(mockListCodesEmpty())
+      .mockResolvedValueOnce(mockCreateCodeSuccess())
+      .mockResolvedValueOnce(mockSmsSuccess())
+      .mockResolvedValueOnce(mockSmoobuMessageFail())   // attempt 1
+      .mockResolvedValueOnce(mockSmoobuMessageFail())   // attempt 2
+      .mockResolvedValueOnce(mockSmoobuMessageFail())   // attempt 3
+      .mockResolvedValueOnce(mockPushoverSuccess());    // failure alert
+
+    const req = makeRequest("/webhook", {
+      action: "newReservation",
+      data: {
+        id: 520, "guest-name": "Greg",
+        arrival: "2026-08-01", departure: "2026-08-05",
+        apartment: { id: 123456, name: "Apt 5" },
+        language: "en", phone: "+48111222333",
+      },
+    });
+
+    const res = await handleSmoobuWebhook(req, mockEnv());
+    expect(res.status).toBe(200);
+    const body = await res.json() as { result: { status: string } };
+    expect(body.result.status).toBe("created"); // booking still succeeds
+
+    const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+    expect(String(lastCall[0])).toBe("https://api.pushover.net/1/messages.json");
+    const sentBody = new URLSearchParams(lastCall[1]?.body as string);
+    expect(sentBody.get("message")).toContain("520");   // booking id
+    expect(sentBody.get("message")).toContain("Greg");  // guest name
   });
 });
