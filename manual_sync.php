@@ -284,8 +284,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
             'created' => 0,
             'updated' => 0,
             'errors' => 0,
-            'skipped' => 0,
-            'messages_resent' => 0
+            'skipped' => 0
         ];
 
         $webhookHandler = new SmoobuWebhook($config);
@@ -498,57 +497,6 @@ $apply = ($_GET['apply'] ?? false) == '1';
                     echo '</div>';
                 } else {
                     $stats['ok']++;
-
-                    // Verify the guest check-in message actually exists in
-                    // Smoobu; re-send it (message only, never SMS) if missing.
-                    $prefix = $config['digicode_prefixes'][$lockId] ?? '';
-                    $fullPin = $prefix . $existing['code'];
-                    $msgVerified = $webhookHandler->wasPINMessageSent($bookingId, $fullPin);
-
-                    if ($msgVerified === false) {
-                        echo '<div class="booking">';
-                        echo '<div class="booking-action">→ Booking #' . $bookingId . ' (' . htmlspecialchars($guestName) . ')</div>';
-                        echo '<div class="booking-detail">Guest message missing in Smoobu</div>';
-
-                        if ($apply) {
-                            try {
-                                // Fetch full booking details for language/apartment name
-                                $detailUrl = "https://login.smoobu.com/api/reservations/{$bookingId}";
-                                $chDet = curl_init($detailUrl);
-                                curl_setopt($chDet, CURLOPT_RETURNTRANSFER, true);
-                                curl_setopt($chDet, CURLOPT_HTTPHEADER, ['Api-Key: ' . $smoobuApiKey]);
-                                $detailResponse = curl_exec($chDet);
-                                $detailBooking = json_decode($detailResponse, true);
-                                curl_close($chDet);
-
-                                if ($detailBooking) {
-                                    $apartmentName = $detailBooking['apartment']['name'] ?? 'your apartment';
-                                    if ($webhookHandler->sendPINToGuest($detailBooking, $fullPin, $apartmentName)) {
-                                        echo '<div class="booking-detail ok">✓ Guest message re-sent via Smoobu</div>';
-                                        $stats['messages_resent']++;
-                                    } else {
-                                        echo '<div class="booking-detail error">✗ Re-send failed</div>';
-                                        $stats['errors']++;
-                                    }
-                                } else {
-                                    echo '<div class="booking-detail error">✗ Re-send failed: could not load booking details</div>';
-                                    $stats['errors']++;
-                                }
-                            } catch (Exception $e) {
-                                echo '<div class="booking-detail error">⚠ Re-send failed: ' . htmlspecialchars($e->getMessage()) . '</div>';
-                                $stats['errors']++;
-                            }
-                        } else {
-                            echo '<div class="booking-detail">[DRY RUN] Guest message missing in Smoobu — would re-send</div>';
-                            $stats['messages_resent']++;
-                        }
-                        echo '</div>';
-                    } elseif ($msgVerified === null) {
-                        echo '<div class="booking">';
-                        echo '<div class="booking-action">→ Booking #' . $bookingId . ' (' . htmlspecialchars($guestName) . ')</div>';
-                        echo '<div class="booking-detail">⚠ Could not verify guest message (Smoobu API error) — skipped</div>';
-                        echo '</div>';
-                    }
                 }
             } else {
                 echo '<div class="booking">';
@@ -619,7 +567,6 @@ $apply = ($_GET['apply'] ?? false) == '1';
         echo '<div class="summary-item"><div class="summary-number ok">' . $stats['ok'] . '</div><div class="summary-label">Already Synced</div></div>';
         echo '<div class="summary-item"><div class="summary-number created">' . $stats['created'] . '</div><div class="summary-label">To Create</div></div>';
         echo '<div class="summary-item"><div class="summary-number updated">' . $stats['updated'] . '</div><div class="summary-label">To Update</div></div>';
-        echo '<div class="summary-item"><div class="summary-number updated">' . $stats['messages_resent'] . '</div><div class="summary-label">Messages Re-sent</div></div>';
         echo '<div class="summary-item"><div class="summary-number skipped">' . $stats['skipped'] . '</div><div class="summary-label">Skipped</div></div>';
         echo '<div class="summary-item"><div class="summary-number error">' . $stats['errors'] . '</div><div class="summary-label">Errors</div></div>';
         echo '</div>';
@@ -627,10 +574,10 @@ $apply = ($_GET['apply'] ?? false) == '1';
 
         // Final message
         if (!$apply) {
-            if ($stats['created'] > 0 || $stats['updated'] > 0 || $stats['messages_resent'] > 0) {
+            if ($stats['created'] > 0 || $stats['updated'] > 0) {
                 echo '<div class="alert alert-warning">';
                 echo '<strong>Ready to apply changes?</strong><br>';
-                echo 'Click the button below to update existing codes or create missing ones. Guest notifications will be sent for NEW codes and DATE updates, and missing guest messages will be re-sent.';
+                echo 'Click the button below to update existing codes or create missing ones. Guest notifications will be sent for NEW codes and DATE updates.';
                 echo '</div>';
                 echo '<a href="?apply=1" class="button button-success">✅ Apply Changes</a>';
                 echo '<a href="?" class="button">🔄 Refresh Preview</a>';
@@ -644,8 +591,8 @@ $apply = ($_GET['apply'] ?? false) == '1';
         } else {
             echo '<div class="alert alert-success">';
             echo '<strong>✅ Sync Complete!</strong><br>';
-            if ($stats['created'] > 0 || $stats['updated'] > 0 || $stats['messages_resent'] > 0) {
-                echo 'Changes have been applied. Smoobu IDs linked. Guest notifications sent for new codes and date updates, and missing guest messages re-sent.';
+            if ($stats['created'] > 0 || $stats['updated'] > 0) {
+                echo 'Changes have been applied. Smoobu IDs linked. Guest notifications sent for new codes and date updates.';
             } else {
                 echo 'All bookings were already in sync.';
             }
