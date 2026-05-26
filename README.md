@@ -150,7 +150,8 @@ workers/
 
 ### VPS (Admin Tools)
 
-- **`manual_sync.php`** — Web UI to recover missed bookings from Smoobu API. Supports dry-run mode, name-based matching for existing codes (with prefix handling), and links `Smoobu#ID` to manual codes. Sends guest notifications for new codes and date updates.
+- **`manual_sync.php`** — Web UI to recover missed bookings from Smoobu API. Supports dry-run mode, name-based matching for existing codes (with prefix handling), and links `Smoobu#ID` to manual codes. Sends guest notifications for new codes and date updates. If a lock's code scan fails (transient The Keys API error), its bookings are skipped with a warning rather than treated as un-coded — so a failed scan never produces duplicate codes.
+- **`TheKeysAPI.php`** — The Keys Cloud API client for the admin tools. The Keys' cloud endpoint intermittently resets connections, so `listCodes()` retries transient failures (3 attempts + timeouts) and reports fetch success/failure via a `&$ok` out-param, letting callers distinguish "no codes" from "could not fetch".
 - **`lock_migration.php`** — Lock hardware replacement tool; migrates codes and notifies guests.
 - **`pipe.php`** — Email logging endpoint for IFTTT triggers.
 - **`config.php`** — Runtime config for admin tools (gitignored; copy from `config.example.php`).
