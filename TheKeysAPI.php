@@ -51,25 +51,52 @@ class TheKeysAPI {
     }
     
     /**
-     * List all keypad codes for a lock
+     * List all keypad codes for a lock.
+     *
+     * The Keys cloud API intermittently resets the connection ("Recv failure:
+     * Connection reset by peer"), returning http=0 or an empty 200 body. A bare
+     * return of [] on failure is indistinguishable from "this lock has no codes"
+     * — and callers that create codes would then create duplicates. So retry
+     * transient failures and report success via $ok: true = fetched cleanly
+     * (the returned [] is genuinely empty), false = could not fetch.
+     *
+     * @param int   $lock_id
+     * @param bool &$ok  Set to true on a clean fetch, false on persistent failure.
      */
-    public function listCodes($lock_id) {
+    public function listCodes($lock_id, &$ok = null) {
         $url = $this->base_url . "/fr/api/v2/partage/all/serrure/{$lock_id}?_format=json";
-        
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $this->headers);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($http_code === 200) {
-            $data = json_decode($response, true);
-            return $data['data']['partages_accessoire'] ?? [];
+        $attempts = 3;
+        $backoffMs = [400, 900]; // between attempt 1->2 and 2->3
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $this->headers);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+
+            $response = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($http_code === 200 && is_string($response) && $response !== '') {
+                $data = json_decode($response, true);
+                // A valid response always carries a 'data' object. An empty body
+                // (connection reset) decodes to null and is treated as a failure.
+                if (is_array($data) && isset($data['data'])) {
+                    $ok = true;
+                    return $data['data']['partages_accessoire'] ?? [];
+                }
+            }
+
+            // Transient failure (curl error / http 0 / 5xx / empty or garbage body) — retry.
+            if ($attempt < $attempts) {
+                usleep($backoffMs[$attempt - 1] * 1000);
+            }
         }
-        
+
+        $ok = false;
         return [];
     }
     

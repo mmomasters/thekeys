@@ -237,8 +237,17 @@ $apply = ($_GET['apply'] ?? false) == '1';
         echo '<div class="step-title">[3/5] Scanning existing codes in The Keys...</div>';
         $existingCodes = [];
         $existingCodesByName = [];
+        $failedLocks = [];
         foreach ($config['lock_accessoires'] as $lockId => $accessoireId) {
-            $codes = $keysApi->listCodes($lockId);
+            $ok = false;
+            $codes = $keysApi->listCodes($lockId, $ok);
+            if (!$ok) {
+                // Could not fetch this lock's codes (transient API failure even
+                // after retries). Do NOT fold it into the maps — otherwise every
+                // booking on this lock would look "missing" and get a duplicate.
+                $failedLocks[$lockId] = true;
+                continue;
+            }
             foreach ($codes as $code) {
                 $desc = $code['description'] ?? '';
                 $name = $code['nom'] ?? '';
@@ -273,6 +282,9 @@ $apply = ($_GET['apply'] ?? false) == '1';
             }
         }
         echo '<div class="step-content ok">✓ Found ' . count($existingCodes) . ' existing Smoobu codes</div>';
+        if (!empty($failedLocks)) {
+            echo '<div class="step-content error">⚠ Could not scan lock(s): ' . htmlspecialchars(implode(', ', array_keys($failedLocks))) . ' — bookings on these locks are skipped (not created) to avoid duplicates. Re-run to sync them.</div>';
+        }
         echo '</div>';
 
         // Step 4: Analyze and sync
@@ -352,7 +364,18 @@ $apply = ($_GET['apply'] ?? false) == '1';
                 $stats['skipped']++;
                 continue;
             }
-            
+
+            // If this lock's existing codes could not be scanned, never create
+            // here — we can't tell whether a code already exists.
+            if (isset($failedLocks[$lockId])) {
+                echo '<div class="booking">';
+                echo '<div class="booking-action">→ Booking #' . $bookingId . ' (' . htmlspecialchars($guestName) . ')</div>';
+                echo '<div class="booking-detail error">⚠ Code scan failed for lock ' . $lockId . ' — skipped to avoid creating a duplicate. Re-run to sync.</div>';
+                echo '</div>';
+                $stats['skipped']++;
+                continue;
+            }
+
             $idAccessoire = $config['lock_accessoires'][$lockId] ?? null;
             if (!$idAccessoire) {
                 $stats['skipped']++;
