@@ -196,7 +196,7 @@ $apply = ($_GET['apply'] ?? false) == '1';
         echo '<div class="step">';
         echo '<div class="step-title">[2/5] Fetching bookings from Smoobu...</div>';
         
-        $smoobuApiKey = $config['smoobu']['api_key'];
+        $webhookHandler = new SmoobuWebhook($config);
         $startDate = date('Y-m-d');
         $endDate = date('Y-m-d', strtotime('+90 days'));
 
@@ -205,17 +205,12 @@ $apply = ($_GET['apply'] ?? false) == '1';
         $bookings = [];
         $page = 1;
         do {
-            $url = "https://login.smoobu.com/api/reservations?arrivalFrom={$startDate}&arrivalTo={$endDate}&pageSize=100&page={$page}";
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Api-Key: ' . $smoobuApiKey,
-                'Cache-Control: no-cache'
+            list($httpCode, $response) = $webhookHandler->smoobuApiRequest('GET', '/api/reservations', [
+                'arrivalFrom' => $startDate,
+                'arrivalTo' => $endDate,
+                'pageSize' => 100,
+                'page' => $page,
             ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
 
             if ($httpCode !== 200) {
                 echo '<div class="step-content error">❌ ERROR: Failed to fetch Smoobu bookings (HTTP ' . $httpCode . ', page ' . $page . ')</div>';
@@ -298,8 +293,6 @@ $apply = ($_GET['apply'] ?? false) == '1';
             'errors' => 0,
             'skipped' => 0
         ];
-
-        $webhookHandler = new SmoobuWebhook($config);
 
         // Pre-pass: when multiple current bookings could name-match the same
         // unlinked code, pick one preferred claimant (dates match the code's
@@ -482,13 +475,8 @@ $apply = ($_GET['apply'] ?? false) == '1';
                             if ($existing['start'] != $arrival || $existing['end'] != $departure) {
                                 try {
                                     // Fetch full booking details for phone/language
-                                    $detailUrl = "https://login.smoobu.com/api/reservations/{$bookingId}";
-                                    $chDet = curl_init($detailUrl);
-                                    curl_setopt($chDet, CURLOPT_RETURNTRANSFER, true);
-                                    curl_setopt($chDet, CURLOPT_HTTPHEADER, ['Api-Key: ' . $smoobuApiKey]);
-                                    $detailResponse = curl_exec($chDet);
+                                    list($detHttpCode, $detailResponse) = $webhookHandler->smoobuApiRequest('GET', "/api/reservations/{$bookingId}");
                                     $detailBooking = json_decode($detailResponse, true);
-                                    curl_close($chDet);
                                     
                                     if ($detailBooking) {
                                         $apartmentName = $detailBooking['apartment']['name'] ?? 'your apartment';
@@ -546,13 +534,8 @@ $apply = ($_GET['apply'] ?? false) == '1';
                         // Send notifications for NEW codes
                         try {
                             // Fetch full booking details for phone/language
-                            $detailUrl = "https://login.smoobu.com/api/reservations/{$bookingId}";
-                            $chDet = curl_init($detailUrl);
-                            curl_setopt($chDet, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($chDet, CURLOPT_HTTPHEADER, ['Api-Key: ' . $smoobuApiKey]);
-                            $detailResponse = curl_exec($chDet);
+                            list($detHttpCode, $detailResponse) = $webhookHandler->smoobuApiRequest('GET', "/api/reservations/{$bookingId}");
                             $detailBooking = json_decode($detailResponse, true);
-                            curl_close($chDet);
                             
                             if ($detailBooking) {
                                 $apartmentName = $detailBooking['apartment']['name'] ?? 'your apartment';

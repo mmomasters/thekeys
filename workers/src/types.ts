@@ -3,6 +3,7 @@ export interface Env {
   THEKEYS_USERNAME: string;
   THEKEYS_PASSWORD: string;
   SMOOBU_API_KEY: string;
+  SMOOBU_API_SECRET: string;
   ELEVENLABS_WEBHOOK_SECRET: string;
   PUSHOVER_USER_KEY: string;
   PUSHOVER_API_TOKEN: string;

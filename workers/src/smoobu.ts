@@ -3,6 +3,7 @@ import { TheKeysAPI } from "./thekeys";
 import { sendSMSNotification } from "./sms";
 import { sendPushover } from "./pushover";
 import { loadLanguage } from "./languages";
+import { smoobuFetch } from "./smoobuApi";
 
 const ACTION_MAP: Record<string, string> = {
   newReservation: "reservation.new",
@@ -57,13 +58,11 @@ async function sendGuestMessage(
   let lastDetail = "";
   for (let attempt = 1; attempt <= GUEST_MESSAGE_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch(
-        `https://login.smoobu.com/api/reservations/${booking.id}/messages/send-message-to-guest`,
-        {
-          method: "POST",
-          headers: { "Api-Key": env.SMOOBU_API_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ subject: lang.subject, messageBody: lang.message }),
-        }
+      const res = await smoobuFetch(
+        env,
+        "POST",
+        `/api/reservations/${booking.id}/messages/send-message-to-guest`,
+        { body: { subject: lang.subject, messageBody: lang.message } }
       );
       const body = (await res.text()).slice(0, 300);
       if (res.status === 200 || res.status === 201) {

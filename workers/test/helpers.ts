@@ -5,6 +5,7 @@ export function mockEnv(overrides: Partial<Env> = {}): Env {
     THEKEYS_USERNAME: "test_user",
     THEKEYS_PASSWORD: "test_pass",
     SMOOBU_API_KEY: "test_smoobu_key",
+    SMOOBU_API_SECRET: "test_smoobu_secret",
     ELEVENLABS_WEBHOOK_SECRET: "test_elevenlabs_secret",
     PUSHOVER_USER_KEY: "test_pushover_user",
     PUSHOVER_API_TOKEN: "test_pushover_token",

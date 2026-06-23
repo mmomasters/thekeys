@@ -346,16 +346,9 @@ sort($allLocks);
                         if ($matches) {
                             $bookingId = $matches[1];
                             
-                            // Fetch booking from Smoobu
-                            $smoobuApiKey = $config['smoobu']['api_key'];
-                            $url = "https://login.smoobu.com/api/reservations/{$bookingId}";
-                            $ch = curl_init($url);
-                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Api-Key: ' . $smoobuApiKey]);
-                            $response = curl_exec($ch);
-                            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                            curl_close($ch);
-                            
+                            // Fetch booking from Smoobu (HMAC-signed)
+                            list($httpCode, $response) = $webhookHandler->smoobuApiRequest('GET', "/api/reservations/{$bookingId}");
+
                             if ($httpCode == 200) {
                                 $booking = json_decode($response, true);
                                 if ($booking) {

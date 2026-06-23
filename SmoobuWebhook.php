@@ -520,35 +520,90 @@ class SmoobuWebhook {
         }
     }
 
+    // Builds the four Smoobu HMAC headers for a signed API request.
+    // Canonical string (joined by "\n"):
+    //   METHOD\nPATH\nQUERY\nTIMESTAMP\nNONCE\nBODY_HASH\nAPI_KEY
+    // QUERY is the alpha-sorted "k=v&..." (no "?"); BODY_HASH is lowercase hex
+    // sha256 of the raw body. Signature is base64(HMAC-SHA256(canonical, secret)).
+    // See https://docs.smoobu.com/#hmac-authentication
+    private function smoobuSign($method, $path, $queryString, $body) {
+        $apiKey = $this->config['smoobu']['api_key'];
+        $secret = $this->config['smoobu']['api_secret'];
+
+        $timestamp = gmdate('Y-m-d\TH:i:s\Z');
+        $nonce = $this->uuidV4();
+        $bodyHash = hash('sha256', $body);
+
+        $canonical = implode("\n", [
+            strtoupper($method),
+            $path,
+            $queryString,
+            $timestamp,
+            $nonce,
+            $bodyHash,
+            $apiKey,
+        ]);
+        $signature = base64_encode(hash_hmac('sha256', $canonical, $secret, true));
+
+        return [
+            'X-API-Key: ' . $apiKey,
+            'X-Timestamp: ' . $timestamp,
+            'X-Nonce: ' . $nonce,
+            'X-Signature: ' . $signature,
+        ];
+    }
+
+    private function uuidV4() {
+        $bytes = random_bytes(16);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40); // version 4
+        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80); // variant 10
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+    }
+
+    // Signed request against the Smoobu API. $query keys are alpha-sorted so the
+    // canonical string and the request URL always match. Returns [$httpCode, $response].
+    public function smoobuApiRequest($method, $path, array $query = [], $body = null) {
+        ksort($query);
+        $queryString = http_build_query($query);
+        $bodyString = $body === null ? '' : json_encode($body);
+
+        $headers = $this->smoobuSign($method, $path, $queryString, $bodyString);
+
+        $url = 'https://login.smoobu.com' . $path . ($queryString ? '?' . $queryString : '');
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+        if ($body !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $bodyString);
+            $headers[] = 'Content-Type: application/json';
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        return [$httpCode, $response];
+    }
+
     public function sendPINToGuest($booking, $fullPin, $apartmentName) {
         $bookingId = $booking['id'];
         $guestName = $booking['guest-name'] ?? 'Guest';
         $language = strtolower($booking['language'] ?? 'en');
-        
+
         // Load message from language file
         $lang = $this->loadLanguage($language, $booking, $fullPin, $apartmentName);
         $message = $lang['message'];
         $subject = $lang['subject'];
-        
-        // Send via Smoobu API
-        $url = "https://login.smoobu.com/api/reservations/{$bookingId}/messages/send-message-to-guest";
-        
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-            'subject' => $subject,
-            'messageBody' => $message
-        ]));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Api-Key: ' . $this->config['smoobu']['api_key'],
-            'Content-Type: application/json'
-        ]);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
+
+        // Send via Smoobu API (HMAC-signed)
+        list($httpCode, $response) = $this->smoobuApiRequest(
+            'POST',
+            "/api/reservations/{$bookingId}/messages/send-message-to-guest",
+            [],
+            ['subject' => $subject, 'messageBody' => $message]
+        );
+
         if ($httpCode === 201 || $httpCode === 200) {
             $this->log("Sent PIN message to {$guestName} ({$language})");
             return true;
