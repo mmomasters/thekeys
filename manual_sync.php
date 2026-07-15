@@ -20,11 +20,19 @@ foreach (@dns_get_record($allowedDomain, DNS_AAAA) ?: [] as $rec) {
 $visitorIP = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'];
 
 // Compare by binary form so IPv4/IPv6 and compressed/expanded notation all normalize.
+// IPv6 is matched on the /64 prefix only: residential ISPs hand out a stable /64
+// but the host part rotates (privacy extensions), so the full address never matches.
 $visitorBin = @inet_pton($visitorIP);
 $allowed = false;
 if ($visitorBin !== false) {
     foreach ($allowedIPs as $ip) {
-        if (@inet_pton($ip) === $visitorBin) {
+        $allowedBin = @inet_pton($ip);
+        if ($allowedBin === false || strlen($allowedBin) !== strlen($visitorBin)) {
+            continue;
+        }
+        // 16 bytes = IPv6: compare first 8 bytes (/64). 4 bytes = IPv4: compare all.
+        $len = strlen($visitorBin) === 16 ? 8 : strlen($visitorBin);
+        if (substr($allowedBin, 0, $len) === substr($visitorBin, 0, $len)) {
             $allowed = true;
             break;
         }
