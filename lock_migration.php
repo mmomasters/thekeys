@@ -9,12 +9,30 @@
 
 // IP Protection - Only allow access from authorized IP
 $allowedDomain = 'mmo.gleeze.com';
-$allowedIPs = gethostbynamel($allowedDomain);
+// Resolve both IPv4 (A) and IPv6 (AAAA) records so visitors on either stack pass.
+$allowedIPs = gethostbynamel($allowedDomain) ?: [];
+foreach (@dns_get_record($allowedDomain, DNS_AAAA) ?: [] as $rec) {
+    if (!empty($rec['ipv6'])) {
+        $allowedIPs[] = $rec['ipv6'];
+    }
+}
 
 // Get real IP (Cloudflare passes real IP in CF-Connecting-IP header)
 $visitorIP = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'];
 
-if (!$allowedIPs || !in_array($visitorIP, $allowedIPs)) {
+// Compare by binary form so IPv4/IPv6 and compressed/expanded notation all normalize.
+$visitorBin = @inet_pton($visitorIP);
+$allowed = false;
+if ($visitorBin !== false) {
+    foreach ($allowedIPs as $ip) {
+        if (@inet_pton($ip) === $visitorBin) {
+            $allowed = true;
+            break;
+        }
+    }
+}
+
+if (!$allowed) {
     http_response_code(403);
     die('<!DOCTYPE html><html><head><title>Access Denied</title><style>body{font-family:Arial;text-align:center;padding:50px;background:#f44336;color:white;}h1{font-size:48px;}</style></head><body><h1>🔒 Access Denied</h1><p>This page is restricted to authorized users only.</p><p>Your IP: ' . htmlspecialchars($visitorIP) . '</p><p>Allowed: ' . htmlspecialchars(implode(', ', $allowedIPs ?: [])) . '</p></body></html>');
 }
