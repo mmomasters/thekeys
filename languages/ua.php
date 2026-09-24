@@ -8,7 +8,7 @@ return [
 
     'sms_message' => 'Шановний {guest_name},
 
-- Код головної будівлі "Jana z Kolna 19" - 1 + 🔑 + 5687
+- Код головної будівлі "Jana z Kolna 19" - 1 + KEY + 5687
 - Код дверей у холл - 3256 + ENTER
 - Код дверей апартаментів {apartment_name} - {full_pin} + 🟦
 
@@ -23,7 +23,7 @@ Kolna Apartments',
 
     'message' => 'Шановний {guest_name},
 
-- Код головної будівлі "Jana z Kolna 19" - 1 + 🔑 + 5687
+- Код головної будівлі "Jana z Kolna 19" - 1 + KEY + 5687
 - Код дверей у холл - 3256 + ENTER
 - Код дверей апартаментів {apartment_name} - {full_pin} + 🟦
 

@@ -25,7 +25,7 @@ Kolna Apartments',
 
     'message' => 'Pan, Pani {guest_name},
 
-- Kod budynku głównego "Jana z Kolna 19" to 1 + 🔑 + 5687
+- Kod budynku głównego "Jana z Kolna 19" to 1 + KEY + 5687
 - Kod do recepcji to 3256 + ENTER
 - Kod apartamentu {apartment_name} to {full_pin} + 🟦
 

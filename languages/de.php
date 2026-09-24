@@ -25,7 +25,7 @@ Kolna Apartments',
 
     'message' => 'Lieber, Herr {guest_name},
 
-- Hauptgebäude "Jana z Kolna 19" Code ist 1 + 🔑 + 5687
+- Hauptgebäude "Jana z Kolna 19" Code ist 1 + KEY + 5687
 - Lobby-Türcode ist 3256 + ENTER
 - Der Türcode für das Apartment {apartment_name} lautet {full_pin} + 🟦
 

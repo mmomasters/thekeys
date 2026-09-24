@@ -25,7 +25,7 @@ Kolna Apartments',
 
     'message' => 'Dear {guest_name},
 
-- Main building "Jana z Kolna 19" code is 1 + 🔑 + 5687
+- Main building "Jana z Kolna 19" code is 1 + KEY + 5687
 - Lobby door code is 3256 + ENTER
 - Apartment {apartment_name} door code is {full_pin} + 🟦
 
