@@ -1,12 +1,15 @@
 <?php
 /**
- * Smoobu read-only signing proxy for the ElevenLabs agent's booking check.
+ * Smoobu availability endpoint for the ElevenLabs agent's booking check.
  *
- * The agent sends X-Proxy-Token and calls e.g.
- *   GET /thekeys/smoobu-proxy.php/api/reservations?arrivalFrom=...
- * and this script forwards it to Smoobu with HMAC auth, so the agent never
- * holds the Smoobu key/secret. GET only: a leaked proxy token can read
- * bookings but cannot send messages or modify reservations.
+ *   POST /thekeys/smoobu-proxy.php/availability
+ *   X-Proxy-Token: <config['smoobu']['proxy_token']>
+ *   {"arrival":"2026-10-30","departure":"2026-10-31","guests":1}
+ *
+ * (The same fields also work as GET query params.) Returns only which
+ * apartments are free, with price — never booking or guest data, so the
+ * agent cannot read other guests' details to a caller. There is deliberately
+ * no raw /api/... passthrough.
  *
  * Signing mirrors SmoobuWebhook::smoobuSign()/uuidV4() — keep them in sync.
  * Not built on SmoobuWebhook because its constructor opens MySQL and TheKeysAPI.
@@ -18,12 +21,83 @@ $apiKey = $smoobu['api_key'] ?? '';
 $apiSecret = $smoobu['api_secret'] ?? '';
 $proxyToken = $smoobu['proxy_token'] ?? '';
 
+const APARTMENTS_CACHE_TTL = 86400;
+
 header('Content-Type: application/json');
 
 function fail($code, $error) {
     http_response_code($code);
     echo json_encode(['error' => $error]);
     exit;
+}
+
+// Signed request against the Smoobu API. Returns [$httpCode, $decodedJson|null].
+function smoobuRequest($method, $path, array $query = [], $bodyString = '') {
+    global $apiKey, $apiSecret;
+
+    ksort($query);
+    $queryString = http_build_query($query);
+
+    $timestamp = gmdate('Y-m-d\TH:i:s\Z');
+    $bytes = random_bytes(16);
+    $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40); // version 4
+    $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80); // variant 10
+    $nonce = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+
+    $canonical = implode("\n", [$method, $path, $queryString, $timestamp, $nonce, hash('sha256', $bodyString), $apiKey]);
+    $signature = base64_encode(hash_hmac('sha256', $canonical, $apiSecret, true));
+
+    $headers = [
+        'X-API-Key: ' . $apiKey,
+        'X-Timestamp: ' . $timestamp,
+        'X-Nonce: ' . $nonce,
+        'X-Signature: ' . $signature,
+        'Accept: application/json',
+    ];
+
+    $ch = curl_init('https://login.smoobu.com' . $path . ($queryString !== '' ? '?' . $queryString : ''));
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    if ($bodyString !== '') {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $bodyString);
+        $headers[] = 'Content-Type: application/json';
+    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    return [$httpCode, $response === false ? null : json_decode($response, true)];
+}
+
+// Customer id + apartment id=>name map. Rarely changes, so cached for a day
+// to keep the voice agent's call down to a single Smoobu request.
+function loadAccount() {
+    $cacheFile = sys_get_temp_dir() . '/smoobu-proxy-apartments.json';
+    if (is_file($cacheFile) && filemtime($cacheFile) > time() - APARTMENTS_CACHE_TTL) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if (!empty($cached['customerId']) && !empty($cached['apartments'])) {
+            return $cached;
+        }
+    }
+
+    list($meCode, $me) = smoobuRequest('GET', '/api/me');
+    list($aptCode, $apts) = smoobuRequest('GET', '/api/apartments');
+    if ($meCode !== 200 || empty($me['id']) || $aptCode !== 200 || empty($apts['apartments'])) {
+        return null;
+    }
+
+    $account = ['customerId' => $me['id'], 'apartments' => []];
+    foreach ($apts['apartments'] as $apt) {
+        $account['apartments'][(string)$apt['id']] = $apt['name'];
+    }
+    @file_put_contents($cacheFile, json_encode($account));
+    return $account;
 }
 
 // An empty configured token would make hash_equals('', '') pass for a missing header.
@@ -33,54 +107,76 @@ if (strlen($proxyToken) < 32 || $apiKey === '' || $apiSecret === '') {
 if (!hash_equals($proxyToken, $_SERVER['HTTP_X_PROXY_TOKEN'] ?? '')) {
     fail(403, 'forbidden');
 }
-
+if (($_SERVER['PATH_INFO'] ?? '') !== '/availability') {
+    fail(404, 'not found');
+}
 $method = $_SERVER['REQUEST_METHOD'];
-if ($method !== 'GET') {
+if ($method !== 'GET' && $method !== 'POST') {
     fail(405, 'method not allowed');
 }
 
-$path = $_SERVER['PATH_INFO'] ?? '';
-if (!preg_match('#^/api/[A-Za-z0-9/_-]+$#', $path)) {
-    fail(400, 'bad path');
+$input = $method === 'POST' ? json_decode(file_get_contents('php://input'), true) : null;
+if (!is_array($input)) {
+    $input = $_GET;
 }
 
-// Same encoding as SmoobuWebhook::smoobuApiRequest(); signed string == sent string.
-$query = $_GET;
-ksort($query);
-$queryString = http_build_query($query);
-$body = '';
+$tz = new DateTimeZone('Europe/Warsaw');
+$arrival = DateTime::createFromFormat('!Y-m-d', (string)($input['arrival'] ?? ''), $tz);
+$departure = DateTime::createFromFormat('!Y-m-d', (string)($input['departure'] ?? ''), $tz);
+if (!$arrival || $arrival->format('Y-m-d') !== ($input['arrival'] ?? null)) {
+    fail(400, 'arrival must be a date in YYYY-MM-DD format');
+}
+if (!$departure || $departure->format('Y-m-d') !== ($input['departure'] ?? null)) {
+    fail(400, 'departure must be a date in YYYY-MM-DD format');
+}
+if ($departure <= $arrival) {
+    fail(400, 'departure must be after arrival');
+}
+if ($arrival < new DateTime('today', $tz)) {
+    fail(400, 'arrival is in the past');
+}
+$guests = filter_var($input['guests'] ?? 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 20]]);
+if ($guests === false) {
+    fail(400, 'guests must be a number between 1 and 20');
+}
 
-$timestamp = gmdate('Y-m-d\TH:i:s\Z');
-$bytes = random_bytes(16);
-$bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40); // version 4
-$bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80); // variant 10
-$nonce = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+$account = loadAccount();
+if ($account === null) {
+    fail(502, 'availability check failed');
+}
 
-$canonical = implode("\n", [$method, $path, $queryString, $timestamp, $nonce, hash('sha256', $body), $apiKey]);
-$signature = base64_encode(hash_hmac('sha256', $canonical, $apiSecret, true));
+list($code, $result) = smoobuRequest('POST', '/booking/checkApartmentAvailability', [], json_encode([
+    'arrivalDate' => $arrival->format('Y-m-d'),
+    'departureDate' => $departure->format('Y-m-d'),
+    'apartments' => array_map('intval', array_keys($account['apartments'])),
+    'customerId' => $account['customerId'],
+    'guests' => $guests,
+]));
+if ($code !== 200 || !is_array($result) || !isset($result['availableApartments'])) {
+    fail(502, 'availability check failed');
+}
 
-$ch = curl_init('https://login.smoobu.com' . $path . ($queryString !== '' ? '?' . $queryString : ''));
-curl_setopt_array($ch, [
-    CURLOPT_CUSTOMREQUEST => $method,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_CONNECTTIMEOUT => 5,
-    CURLOPT_TIMEOUT => 15,
-    CURLOPT_HTTPHEADER => [
-        'X-API-Key: ' . $apiKey,
-        'X-Timestamp: ' . $timestamp,
-        'X-Nonce: ' . $nonce,
-        'X-Signature: ' . $signature,
-        'Accept: application/json',
-    ],
+// Smoobu lists free apartments in availableApartments, explains rule failures
+// (too many guests, minimum stay, ...) in errorMessages, and omits booked ones.
+$freeIds = array_map('strval', $result['availableApartments']);
+$errors = is_array($result['errorMessages'] ?? null) ? $result['errorMessages'] : [];
+$available = [];
+$unavailable = [];
+foreach ($account['apartments'] as $id => $name) {
+    $id = (string)$id; // PHP turns numeric-string array keys back into ints
+    if (in_array($id, $freeIds, true)) {
+        $price = $result['prices'][$id] ?? [];
+        $available[] = ['apartment' => $name, 'price' => $price['price'] ?? null, 'currency' => $price['currency'] ?? null];
+    } else {
+        $unavailable[] = ['apartment' => $name, 'reason' => $errors[$id]['message'] ?? 'booked'];
+    }
+}
+
+echo json_encode([
+    'arrival' => $arrival->format('Y-m-d'),
+    'departure' => $departure->format('Y-m-d'),
+    'nights' => $arrival->diff($departure)->days,
+    'guests' => $guests,
+    'available' => $available,
+    'unavailable' => $unavailable,
 ]);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError = curl_error($ch);
-curl_close($ch);
-
-if ($response === false) {
-    fail(502, $curlError);
-}
-http_response_code($httpCode ?: 502);
-echo $response;
