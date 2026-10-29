@@ -23,7 +23,8 @@ return [
     // Smoobu API credentials (HMAC auth — legacy Api-Key header sunset 2026-09-25)
     'smoobu' => [
         'api_key' => 'usr_live_...',      // X-API-Key: the live key id from Smoobu
-        'api_secret' => 'your_hmac_secret' // used to sign each request (X-Signature)
+        'api_secret' => 'your_hmac_secret', // used to sign each request (X-Signature)
+        'proxy_token' => 'long-random-string' // X-Proxy-Token for smoobu-proxy.php (ElevenLabs booking check), >= 32 chars
     ],
     
     // SMS provider to use: 'serwersms' or 'budgetsms'
