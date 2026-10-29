@@ -25,10 +25,23 @@ const APARTMENTS_CACHE_TTL = 86400;
 
 header('Content-Type: application/json');
 
-function fail($code, $error) {
+function fail($code, $error, $received = null) {
     http_response_code($code);
-    echo json_encode(['error' => $error]);
+    $out = ['error' => $error];
+    if ($received !== null) {
+        $out['received'] = $received; // echoes the agent's own input so a bad tool config is diagnosable
+    }
+    echo json_encode($out);
     exit;
+}
+
+// Strict Y-m-d, tolerating a trailing time part ("2026-10-30T00:00:00").
+function parseDate($value, DateTimeZone $tz) {
+    if (!is_string($value) || !preg_match('/^(\d{4}-\d{2}-\d{2})/', trim($value), $m)) {
+        return null;
+    }
+    $date = DateTime::createFromFormat('!Y-m-d', $m[1], $tz);
+    return $date && $date->format('Y-m-d') === $m[1] ? $date : null;
 }
 
 // Signed request against the Smoobu API. Returns [$httpCode, $decodedJson|null].
@@ -115,19 +128,20 @@ if ($method !== 'GET' && $method !== 'POST') {
     fail(405, 'method not allowed');
 }
 
-$input = $method === 'POST' ? json_decode(file_get_contents('php://input'), true) : null;
-if (!is_array($input)) {
-    $input = $_GET;
-}
+// JSON body wins; form-encoded body and query params are fallbacks.
+$rawBody = file_get_contents('php://input');
+$json = json_decode($rawBody, true);
+$input = array_merge($_GET, is_array($json) ? $json : $_POST);
+$received = $input ?: ($rawBody !== '' ? substr($rawBody, 0, 500) : 'empty request (is the tool set to POST with a body?)');
 
 $tz = new DateTimeZone('Europe/Warsaw');
-$arrival = DateTime::createFromFormat('!Y-m-d', (string)($input['arrival'] ?? ''), $tz);
-$departure = DateTime::createFromFormat('!Y-m-d', (string)($input['departure'] ?? ''), $tz);
-if (!$arrival || $arrival->format('Y-m-d') !== ($input['arrival'] ?? null)) {
-    fail(400, 'arrival must be a date in YYYY-MM-DD format');
+$arrival = parseDate($input['arrival'] ?? $input['arrivalDate'] ?? null, $tz);
+$departure = parseDate($input['departure'] ?? $input['departureDate'] ?? null, $tz);
+if (!$arrival) {
+    fail(400, 'arrival must be a date in YYYY-MM-DD format', $received);
 }
-if (!$departure || $departure->format('Y-m-d') !== ($input['departure'] ?? null)) {
-    fail(400, 'departure must be a date in YYYY-MM-DD format');
+if (!$departure) {
+    fail(400, 'departure must be a date in YYYY-MM-DD format', $received);
 }
 if ($departure <= $arrival) {
     fail(400, 'departure must be after arrival');
@@ -137,7 +151,7 @@ if ($arrival < new DateTime('today', $tz)) {
 }
 $guests = filter_var($input['guests'] ?? 1, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 20]]);
 if ($guests === false) {
-    fail(400, 'guests must be a number between 1 and 20');
+    fail(400, 'guests must be a number between 1 and 20', $received);
 }
 
 $account = loadAccount();
