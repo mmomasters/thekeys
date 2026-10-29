@@ -195,6 +195,38 @@ Multilingual email sent to guest with building/lobby/apartment door codes, check
    ]
    ```
 
+### Availability check tool (`smoobu-proxy.php`)
+Lets the agent answer "is anything free on these dates?" without holding the Smoobu credentials or seeing guest data. It wraps Smoobu's `POST /booking/checkApartmentAvailability` and returns only free apartments with price:
+
+```json
+{"arrival":"2026-10-30","departure":"2026-10-31","nights":1,"guests":1,
+ "available":[{"apartment":"1A","price":190,"currency":"PLN"}],
+ "unavailable":[{"apartment":"1C","reason":"booked"}]}
+```
+
+**`config.php`:** add `'proxy_token'` (≥ 32 chars, e.g. `openssl rand -hex 32`) to the `smoobu` block next to `api_key`/`api_secret`.
+
+**ElevenLabs webhook tool:**
+- **Method: POST.** ElevenLabs does not send a body with GET, so a GET tool with body parameters reaches the proxy empty.
+- **URL:** `https://your-domain.com/thekeys/smoobu-proxy.php/availability` — must be `https://` (an `http://` URL is 301-redirected and the POST body is dropped) and have no trailing slash.
+- **Header:** `X-Proxy-Token: <proxy_token>`
+- **Body parameters** (in JSON mode every property, and the body itself, needs a `description`):
+  ```json
+  {
+    "type": "object",
+    "description": "The stay to check availability for: the check-in date, the check-out date and the number of guests.",
+    "properties": {
+      "arrival":   {"type": "string",  "description": "Check-in date in YYYY-MM-DD format, e.g. 2026-10-30."},
+      "departure": {"type": "string",  "description": "Check-out date in YYYY-MM-DD format, e.g. 2026-10-31. Must be after the arrival date."},
+      "guests":    {"type": "integer", "description": "Total number of guests staying, adults plus children."}
+    },
+    "required": ["arrival", "departure", "guests"]
+  }
+  ```
+- Give the agent today's date in its system prompt so it can turn "next Friday" into `YYYY-MM-DD`.
+
+**Debugging:** a 400 response includes `received` — what the proxy actually got. `"empty request (is the tool set to POST with a body?)"` means the body was lost (GET method or `http://` redirect).
+
 ## ⚙️ Configuration Details
 
 ### Key Concepts
